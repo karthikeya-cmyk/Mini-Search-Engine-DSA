@@ -1,0 +1,3 @@
+Data structures are important in programming.
+HashMap provides fast data lookup.
+Trees are useful data structures.

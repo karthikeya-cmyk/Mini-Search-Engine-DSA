@@ -1,0 +1,3 @@
+Java is a programming language.
+Java is object oriented.
+Java is used to build applications.

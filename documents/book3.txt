@@ -1,0 +1,3 @@
+Trie is a tree based data structure.
+Trie is useful for fast searching.
+Trie can provide autocomplete suggestions.
