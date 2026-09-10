@@ -18,10 +18,18 @@ public class SearchResult {
         return frequency;
     }
 
+    /**
+     * Relevance score for this search result.
+     * In this engine, score is based on keyword frequency in the document.
+     */
+    public int getScore() {
+        return frequency;
+    }
+
     @Override
     public String toString() {
         return document.getFileName()
-                + " | Frequency: "
+                + " | Frequency/Score: "
                 + frequency;
     }
 }
