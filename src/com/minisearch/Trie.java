@@ -11,6 +11,11 @@ public class Trie {
         root = new TrieNode();
     }
 
+    public void clear() {
+        root.children.clear();
+        root.isEndOfWord = false;
+    }
+
     // Insert a word into the Trie
     public void insert(String word) {
 

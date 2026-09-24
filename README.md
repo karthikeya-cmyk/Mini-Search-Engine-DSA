@@ -56,7 +56,14 @@ From the project root directory:
 javac -d bin src/com/minisearch/*.java
 ```
 
-### Running the Application
+### Running the Web Application (Interactive Frontend)
+You can launch the modern web frontend at **http://localhost:8080**:
+```bash
+java -cp bin com.minisearch.WebServer
+```
+Or simply double-click [run_gui.bat](file:///c:/Users/Abhin/IdeaProjects/Mini-Search-Engine-DSA-3/run_gui.bat) on Windows.
+
+### Running the Console Application (CLI)
 ```bash
 java -cp bin com.minisearch.Main
 ```
