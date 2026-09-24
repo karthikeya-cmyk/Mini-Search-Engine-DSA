@@ -1,5 +1,6 @@
 package com.minisearch;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -29,17 +30,18 @@ public class Document {
         String[] words = this.content.toLowerCase()
                 .split("[^a-z0-9]+");
 
-        this.wordCount = words.length;
         this.wordFrequency = new HashMap<>();
-
+        int count = 0;
         for (String word : words) {
             if (!word.isEmpty()) {
+                count++;
                 wordFrequency.put(
                         word,
                         wordFrequency.getOrDefault(word, 0) + 1
                 );
             }
         }
+        this.wordCount = count;
 
         // Also index keywords from the file name itself (e.g. "Main.java" -> "main", "java")
         String[] nameParts = fileName.toLowerCase().split("[^a-z0-9]+");
@@ -49,6 +51,10 @@ public class Document {
                 wordFrequency.put(part, wordFrequency.getOrDefault(part, 0) + 2);
             }
         }
+    }
+
+    public Map<String, Integer> getWordFrequency() {
+        return Collections.unmodifiableMap(wordFrequency);
     }
 
     public String getFileName() {

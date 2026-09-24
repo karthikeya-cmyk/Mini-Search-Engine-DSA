@@ -51,7 +51,7 @@ public class History {
      *
      * @param query search query entered by the user
      */
-    public void addSearch(String query) {
+    public synchronized void addSearch(String query) {
         if (query == null || query.isBlank()) {
             return;
         }
@@ -63,7 +63,7 @@ public class History {
      * Prints all previous search queries in LIFO order (latest search first).
      * Handles empty history gracefully.
      */
-    public void showHistory() {
+    public synchronized void showHistory() {
         if (searchStack.isEmpty()) {
             System.out.println("Search history is empty.");
             return;
@@ -84,7 +84,7 @@ public class History {
      *
      * @return List of past searches from most recent to oldest
      */
-    public List<String> getHistoryList() {
+    public synchronized List<String> getHistoryList() {
         List<String> list = new ArrayList<>();
         // Read from top of stack to bottom
         for (int i = searchStack.size() - 1; i >= 0; i--) {
@@ -97,7 +97,7 @@ public class History {
      * Removes all searches from history.
      * Operation: stack.clear()
      */
-    public void clearHistory() {
+    public synchronized void clearHistory() {
         searchStack.clear();
         System.out.println("Search history has been cleared.");
     }
@@ -108,7 +108,7 @@ public class History {
      *
      * @return latest query, or null if empty
      */
-    public String peekLatest() {
+    public synchronized String peekLatest() {
         if (searchStack.isEmpty()) {
             return null;
         }
@@ -118,14 +118,14 @@ public class History {
     /**
      * Checks if history is empty.
      */
-    public boolean isEmpty() {
+    public synchronized boolean isEmpty() {
         return searchStack.isEmpty();
     }
 
     /**
      * Returns total number of searches stored.
      */
-    public int size() {
+    public synchronized int size() {
         return searchStack.size();
     }
 }

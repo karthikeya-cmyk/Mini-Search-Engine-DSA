@@ -41,8 +41,13 @@ public class WebServer {
 
     public WebServer() {
         this.indexer = new Indexer();
-        // Start by indexing current working directory
-        this.indexer.indexDocuments(System.getProperty("user.dir"));
+        // Start by indexing demo documents if available, otherwise current working directory
+        File demoDir = new File("documents");
+        if (demoDir.exists() && demoDir.isDirectory()) {
+            this.indexer.indexDocuments(demoDir.getAbsolutePath());
+        } else {
+            this.indexer.indexDocuments(System.getProperty("user.dir"));
+        }
 
         this.searchEngine = new SearchEngine(indexer);
         this.ranker = new Ranker();
@@ -70,12 +75,18 @@ public class WebServer {
         server.createContext("/api/open-file", new OpenFileHandler());
         server.createContext("/api/reveal-folder", new RevealFolderHandler());
 
+        // DSA Visualizers & Structure Telemetry
+        server.createContext("/api/dsa/trie", new DsaTrieHandler());
+        server.createContext("/api/dsa/inverted-index", new DsaInvertedIndexHandler());
+        server.createContext("/api/dsa/heap", new DsaHeapHandler());
+        server.createContext("/api/dsa/overview", new DsaOverviewHandler());
+
         // Static Web UI Handler
         server.createContext("/", new StaticFileHandler());
 
         server.start();
         System.out.println("=================================================");
-        System.out.println("⚡ File Search & Manager Server active on: http://localhost:" + PORT);
+        System.out.println("⚡ Mini Search Engine (DSA) Server active on: http://localhost:" + PORT);
         System.out.println("Indexed Directory: " + indexer.getCurrentFolderPath());
         System.out.println("Indexed Files: " + searchEngine.getDocumentCount());
         System.out.println("Unique Indexed Words: " + searchEngine.getUniqueWordCount());
@@ -107,21 +118,27 @@ public class WebServer {
 
             List<LocationItem> locations = new ArrayList<>();
 
-            // System Drives
+            // 1. Curated Project Demo Documents (3 books)
+            File demoDocs = new File("documents");
+            if (demoDocs.exists() && demoDocs.isDirectory()) {
+                locations.add(new LocationItem("Demo Corpus (./documents)", demoDocs.getAbsolutePath(), "docs"));
+            }
+
+            // 2. Project Workspace
+            addIfValid(locations, "Project Workspace", userDir, "project");
+
+            // 3. User Directories
+            addIfValid(locations, "User Documents", Paths.get(userHome, "Documents").toString(), "folder");
+            addIfValid(locations, "Downloads", Paths.get(userHome, "Downloads").toString(), "folder");
+            addIfValid(locations, "Desktop", Paths.get(userHome, "Desktop").toString(), "folder");
+
+            // 4. System Drives
             File[] roots = File.listRoots();
             if (roots != null) {
                 for (File root : roots) {
                     locations.add(new LocationItem("Drive (" + root.getAbsolutePath() + ")", root.getAbsolutePath(), "drive"));
                 }
             }
-
-            // User Directories
-            addIfValid(locations, "Workspace", userDir, "project");
-            addIfValid(locations, "Documents", Paths.get(userHome, "Documents").toString(), "folder");
-            addIfValid(locations, "Downloads", Paths.get(userHome, "Downloads").toString(), "folder");
-            addIfValid(locations, "Desktop", Paths.get(userHome, "Desktop").toString(), "folder");
-            addIfValid(locations, "IdeaProjects", Paths.get(userHome, "IdeaProjects").toString(), "project");
-            addIfValid(locations, "User Home", userHome, "user");
 
             StringBuilder json = new StringBuilder();
             json.append("{");
@@ -323,9 +340,12 @@ public class WebServer {
 
             long startNs = System.nanoTime();
             List<SearchResult> rawResults = searchEngine.search(query);
+            long afterLookupNs = System.nanoTime();
             List<SearchResult> rankedResults = ranker.rank(rawResults);
             long endNs = System.nanoTime();
 
+            long lookupNs = afterLookupNs - startNs;
+            long heapSortNs = endNs - afterLookupNs;
             long durationNs = endNs - startNs;
             double durationMs = durationNs / 1_000_000.0;
 
@@ -344,6 +364,10 @@ public class WebServer {
             json.append("\"query\":").append(quote(query)).append(",");
             json.append("\"durationNs\":").append(durationNs).append(",");
             json.append("\"durationMs\":").append(String.format(Locale.US, "%.3f", durationMs)).append(",");
+            json.append("\"lookupNs\":").append(lookupNs).append(",");
+            json.append("\"lookupMs\":").append(String.format(Locale.US, "%.3f", lookupNs / 1_000_000.0)).append(",");
+            json.append("\"heapSortNs\":").append(heapSortNs).append(",");
+            json.append("\"heapSortMs\":").append(String.format(Locale.US, "%.3f", heapSortNs / 1_000_000.0)).append(",");
             json.append("\"totalMatches\":").append(rankedResults.size()).append(",");
             json.append("\"activeFolder\":").append(quote(indexer.getCurrentFolderPath())).append(",");
             json.append("\"results\":[");
@@ -662,9 +686,11 @@ public class WebServer {
                 path = path.substring(1);
             }
 
-            Path filePath = Paths.get(WEB_DIR, path);
-            if (!Files.exists(filePath) || Files.isDirectory(filePath)) {
-                filePath = Paths.get(WEB_DIR, "index.html");
+            Path baseDir = Paths.get(WEB_DIR).toAbsolutePath().normalize();
+            Path filePath = baseDir.resolve(path).normalize();
+
+            if (!filePath.startsWith(baseDir) || !Files.exists(filePath) || Files.isDirectory(filePath)) {
+                filePath = baseDir.resolve("index.html").normalize();
                 if (!Files.exists(filePath)) {
                     String notFound = "<h1>404 Not Found</h1>";
                     exchange.sendResponseHeaders(404, notFound.length());
@@ -859,5 +885,289 @@ public class WebServer {
             return m.group(1).replace("\\\\", "\\");
         }
         return null;
+    }
+
+    // --- DSA VISUALIZER & TELEMETRY HANDLERS ---
+
+    private class DsaTrieHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendCors(exchange);
+                return;
+            }
+
+            Map<String, String> params = parseQueryParams(exchange.getRequestURI().getRawQuery());
+            String prefix = params.getOrDefault("prefix", "").trim().toLowerCase();
+            int depth = 3;
+            try {
+                depth = Integer.parseInt(params.getOrDefault("depth", "3"));
+            } catch (Exception ignored) {}
+
+            Trie trie;
+            synchronized (WebServer.this) {
+                trie = indexer.getTrie();
+            }
+
+            Map<String, Object> tree = trie.exportTree(prefix, depth);
+            List<String> suggestions = trie.autoComplete(prefix);
+            if (suggestions.size() > 15) {
+                suggestions = suggestions.subList(0, 15);
+            }
+
+            StringBuilder json = new StringBuilder();
+            json.append("{");
+            json.append("\"prefix\":").append(quote(prefix)).append(",");
+            json.append("\"nodeCount\":").append(trie.getNodeCount()).append(",");
+            json.append("\"wordCount\":").append(trie.getWordCount()).append(",");
+            json.append("\"suggestions\":[");
+            for (int i = 0; i < suggestions.size(); i++) {
+                if (i > 0) json.append(",");
+                json.append(quote(suggestions.get(i)));
+            }
+            json.append("],");
+            json.append("\"tree\":");
+            writeTreeJson(json, tree);
+            json.append("}");
+
+            sendJson(exchange, json.toString(), 200);
+        }
+    }
+
+    private static void writeTreeJson(StringBuilder sb, Map<String, Object> node) {
+        sb.append("{");
+        sb.append("\"name\":").append(quote((String) node.get("name"))).append(",");
+        sb.append("\"prefix\":").append(quote((String) node.get("prefix"))).append(",");
+        sb.append("\"isEnd\":").append(node.get("isEnd"));
+        if (node.containsKey("notFound")) {
+            sb.append(",\"notFound\":").append(node.get("notFound"));
+        }
+        sb.append(",\"children\":[");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> children = (List<Map<String, Object>>) node.get("children");
+        if (children != null) {
+            for (int i = 0; i < children.size(); i++) {
+                if (i > 0) sb.append(",");
+                writeTreeJson(sb, children.get(i));
+            }
+        }
+        sb.append("]}");
+    }
+
+    private class DsaInvertedIndexHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendCors(exchange);
+                return;
+            }
+
+            Map<String, String> params = parseQueryParams(exchange.getRequestURI().getRawQuery());
+            String filter = params.getOrDefault("q", "").trim().toLowerCase();
+            int limit = 60;
+            try {
+                limit = Integer.parseInt(params.getOrDefault("limit", "60"));
+            } catch (Exception ignored) {}
+
+            Map<String, List<Document>> invIndex;
+            List<Document> allDocs;
+            synchronized (WebServer.this) {
+                invIndex = indexer.getInvertedIndex();
+                allDocs = indexer.getDocuments();
+            }
+
+            List<String> terms = new ArrayList<>(invIndex.keySet());
+            Collections.sort(terms);
+
+            if (!filter.isEmpty()) {
+                terms.removeIf(t -> !t.contains(filter));
+            }
+
+            int totalMatchedTerms = terms.size();
+            if (terms.size() > limit) {
+                terms = terms.subList(0, limit);
+            }
+
+            StringBuilder json = new StringBuilder();
+            json.append("{");
+            json.append("\"totalUniqueWords\":").append(invIndex.size()).append(",");
+            json.append("\"totalDocuments\":").append(allDocs.size()).append(",");
+            json.append("\"filter\":").append(quote(filter)).append(",");
+            json.append("\"matchedTermsCount\":").append(totalMatchedTerms).append(",");
+            json.append("\"terms\":[");
+
+            for (int i = 0; i < terms.size(); i++) {
+                if (i > 0) json.append(",");
+                String term = terms.get(i);
+                List<Document> docList = invIndex.get(term);
+                json.append("{");
+                json.append("\"term\":").append(quote(term)).append(",");
+                json.append("\"docCount\":").append(docList != null ? docList.size() : 0).append(",");
+                json.append("\"postings\":[");
+                if (docList != null) {
+                    for (int d = 0; d < docList.size(); d++) {
+                        if (d > 0) json.append(",");
+                        Document doc = docList.get(d);
+                        json.append("{");
+                        json.append("\"fileName\":").append(quote(doc.getFileName())).append(",");
+                        json.append("\"filePath\":").append(quote(doc.getFilePath())).append(",");
+                        json.append("\"frequency\":").append(doc.getKeywordFrequency(term));
+                        json.append("}");
+                    }
+                }
+                json.append("]");
+                json.append("}");
+            }
+
+            json.append("]}");
+            sendJson(exchange, json.toString(), 200);
+        }
+    }
+
+    private class DsaHeapHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendCors(exchange);
+                return;
+            }
+
+            Map<String, String> params = parseQueryParams(exchange.getRequestURI().getRawQuery());
+            String query = params.getOrDefault("q", "").trim();
+
+            if (query.isEmpty()) {
+                sendJson(exchange, "{\"query\":\"\",\"initialHeapSize\":0,\"extractionSteps\":[]}", 200);
+                return;
+            }
+
+            List<SearchResult> rawResults = searchEngine.search(query);
+            PriorityQueue<SearchResult> maxHeap = new PriorityQueue<>(
+                    Math.max(1, rawResults.size()),
+                    ranker.getRelevanceComparator()
+            );
+
+            for (SearchResult r : rawResults) {
+                if (r != null) {
+                    maxHeap.offer(r);
+                }
+            }
+
+            int heapSize = maxHeap.size();
+            SearchResult root = maxHeap.peek();
+
+            List<SearchResult> rankedList = new ArrayList<>();
+            List<String> tieBreakNotes = new ArrayList<>();
+
+            SearchResult prev = null;
+            while (!maxHeap.isEmpty()) {
+                SearchResult current = maxHeap.poll();
+                rankedList.add(current);
+                if (prev != null && prev.getScore() == current.getScore()) {
+                    tieBreakNotes.add("Score tie (" + current.getScore() + ") broken alphabetically: '" + prev.getDocument().getFileName() + "' ahead of '" + current.getDocument().getFileName() + "'");
+                } else {
+                    tieBreakNotes.add("Extracted highest relevance score: " + current.getScore());
+                }
+                prev = current;
+            }
+
+            StringBuilder json = new StringBuilder();
+            json.append("{");
+            json.append("\"query\":").append(quote(query)).append(",");
+            json.append("\"initialHeapSize\":").append(heapSize).append(",");
+            json.append("\"rootFileName\":").append(root != null ? quote(root.getDocument().getFileName()) : "null").append(",");
+            json.append("\"rootScore\":").append(root != null ? root.getScore() : 0).append(",");
+            json.append("\"extractionSteps\":[");
+
+            for (int i = 0; i < rankedList.size(); i++) {
+                if (i > 0) json.append(",");
+                SearchResult sr = rankedList.get(i);
+                json.append("{");
+                json.append("\"step\":").append(i + 1).append(",");
+                json.append("\"fileName\":").append(quote(sr.getDocument().getFileName())).append(",");
+                json.append("\"score\":").append(sr.getScore()).append(",");
+                json.append("\"note\":").append(quote(tieBreakNotes.get(i)));
+                json.append("}");
+            }
+            json.append("]}");
+
+            sendJson(exchange, json.toString(), 200);
+        }
+    }
+
+    private class DsaOverviewHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendCors(exchange);
+                return;
+            }
+
+            List<String> stackHistory;
+            List<String> queueRecent;
+            int totalDocs, totalWords, nodeCount;
+            String topQuery;
+            double avgMs;
+
+            synchronized (WebServer.this) {
+                stackHistory = history.getHistoryList();
+                topQuery = history.peekLatest();
+                queueRecent = recentQueue.getRecentSearches();
+                totalDocs = searchEngine.getDocumentCount();
+                totalWords = searchEngine.getUniqueWordCount();
+                nodeCount = indexer.getTrie().getNodeCount();
+                avgMs = totalSearches > 0 ? (totalSearchTimeNs / 1_000_000.0) / totalSearches : 0.0;
+            }
+
+            StringBuilder json = new StringBuilder();
+            json.append("{");
+            json.append("\"stack\":{");
+            json.append("\"name\":\"Search History Stack\",");
+            json.append("\"type\":\"LIFO (Last-In, First-Out)\",");
+            json.append("\"size\":").append(stackHistory.size()).append(",");
+            json.append("\"top\":").append(topQuery != null ? quote(topQuery) : "null").append(",");
+            json.append("\"items\":[");
+            for (int i = 0; i < stackHistory.size(); i++) {
+                if (i > 0) json.append(",");
+                json.append(quote(stackHistory.get(i)));
+            }
+            json.append("]},");
+
+            json.append("\"queue\":{");
+            json.append("\"name\":\"Recent Searches Sliding Buffer\",");
+            json.append("\"type\":\"FIFO (First-In, First-Out)\",");
+            json.append("\"capacity\":").append(recentQueue.getMaxCapacity()).append(",");
+            json.append("\"size\":").append(queueRecent.size()).append(",");
+            json.append("\"items\":[");
+            for (int i = 0; i < queueRecent.size(); i++) {
+                if (i > 0) json.append(",");
+                json.append(quote(queueRecent.get(i)));
+            }
+            json.append("]},");
+
+            json.append("\"trie\":{");
+            json.append("\"nodeCount\":").append(nodeCount).append(",");
+            json.append("\"wordCount\":").append(totalWords);
+            json.append("},");
+
+            json.append("\"invertedIndex\":{");
+            json.append("\"termsCount\":").append(totalWords).append(",");
+            json.append("\"docsCount\":").append(totalDocs);
+            json.append("},");
+
+            json.append("\"heap\":{");
+            json.append("\"type\":\"Max-Heap PriorityQueue\",");
+            json.append("\"comparator\":\"(b.score - a.score) -> then alphabetical by fileName\"");
+            json.append("},");
+
+            json.append("\"telemetry\":{");
+            json.append("\"totalSearches\":").append(totalSearches).append(",");
+            json.append("\"lastSearchTimeMs\":").append(String.format(Locale.US, "%.3f", lastSearchTimeMs)).append(",");
+            json.append("\"avgSearchTimeMs\":").append(String.format(Locale.US, "%.3f", avgMs));
+            json.append("}");
+
+            json.append("}");
+
+            sendJson(exchange, json.toString(), 200);
+        }
     }
 }

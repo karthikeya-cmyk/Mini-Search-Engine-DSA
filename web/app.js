@@ -1,425 +1,628 @@
 /**
  * ============================================================================
- * File Search — Desktop Application Controller (v3.6)
+ * NEXUS // MINI SEARCH ENGINE (DSA) — CLIENT APPLICATION CONTROLLER (v4.0)
  * ============================================================================
  */
 
 const API_BASE = window.location.origin;
 
-// State
-let currentIndexedFolder = '';
-let currentBrowsePath = '';
-let currentResults = [];
-let selectedIndex = -1;
-let activeFilter = 'all';
-let currentQuery = '';
-let selectedDocData = null;
+// Application State
+const state = {
+  currentTab: 'search',
+  currentDsaSubtab: 'heap',
+  activeCorpusPath: '',
+  activeCorpusName: '',
+  searchResults: [],
+  selectedDoc: null,
+  activeFilter: 'all',
+  activeSortMode: 'heap',
+  currentQuery: '',
+  trieSuggestions: [],
+  autoHighlightIdx: -1,
+  debounceTimers: {}
+};
 
-let searchDebounceTimer = null;
-let autocompleteDebounceTimer = null;
-let currentSuggestions = [];
-let autoHighlightIndex = -1;
+// DOM References
+const elements = {
+  // Navigation
+  navTabs: document.querySelectorAll('.nav-tab'),
+  tabPanels: document.querySelectorAll('.tab-panel'),
+  dsaSubtabs: document.querySelectorAll('.dsa-subtab'),
+  dsaPanes: document.querySelectorAll('.dsa-pane'),
+  btnBrandHome: document.getElementById('btn-brand-home'),
+  btnThemeToggle: document.getElementById('btn-theme-toggle'),
 
-// DOM Elements
-const searchInput = document.getElementById('search-input');
-const btnClearInput = document.getElementById('btn-clear-input');
-const autocompleteDropdown = document.getElementById('autocomplete-dropdown');
-const autocompleteList = document.getElementById('autocomplete-list');
-const filterTags = document.querySelectorAll('.filter-tag');
-const feedCounter = document.getElementById('feed-counter');
-const resultsScroll = document.getElementById('results-scroll');
-const feedEmptyState = document.getElementById('feed-empty-state');
+  // Header Status
+  currentCorpusName: document.getElementById('current-corpus-name'),
+  corpusDropdownTrigger: document.getElementById('corpus-dropdown-trigger'),
+  corpusDropdownMenu: document.getElementById('corpus-dropdown-menu'),
+  corpusLocationsList: document.getElementById('corpus-locations-list'),
+  headerStatDocs: document.getElementById('header-stat-docs'),
+  headerStatWords: document.getElementById('header-stat-words'),
+  btnReindexHeader: document.getElementById('btn-reindex-header'),
 
-const quickLocationsBar = document.getElementById('quick-locations-bar');
-const statDocCount = document.getElementById('stat-doc-count');
-const statWordCount = document.getElementById('stat-word-count');
-const btnReindexCurrent = document.getElementById('btn-reindex-current');
-const btnOpenCurrentFolder = document.getElementById('btn-open-current-folder');
+  // Search Omnibar
+  mainSearchInput: document.getElementById('main-search-input'),
+  btnClearSearch: document.getElementById('btn-clear-search'),
+  trieAutocompleteBox: document.getElementById('trie-autocomplete-box'),
+  autocompleteItemsList: document.getElementById('autocomplete-items-list'),
+  filterPills: document.querySelectorAll('.filter-pill'),
+  selectSortMode: document.getElementById('select-sort-mode'),
 
-const pathCrumbsBox = document.getElementById('path-crumbs-box');
-const dirBrowserList = document.getElementById('dir-browser-list');
-const btnNavParent = document.getElementById('btn-nav-parent');
-const recentChips = document.getElementById('recent-chips');
-const btnClearRecent = document.getElementById('btn-clear-recent');
+  // Search Results
+  teleTotalTime: document.getElementById('tele-total-time'),
+  teleLookupTime: document.getElementById('tele-lookup-time'),
+  teleHeapTime: document.getElementById('tele-heap-time'),
+  teleMatchCount: document.getElementById('tele-match-count'),
+  resultsContainer: document.getElementById('results-container'),
 
-// Inspector Elements
-const inspectorEmpty = document.getElementById('inspector-empty');
-const inspectorContent = document.getElementById('inspector-content');
-const previewExtTag = document.getElementById('preview-ext-tag');
-const previewFilename = document.getElementById('preview-filename');
-const previewFilepath = document.getElementById('preview-filepath');
-const previewSize = document.getElementById('preview-size');
-const previewWords = document.getElementById('preview-words');
-const previewScore = document.getElementById('preview-score');
-const codeLinesTable = document.getElementById('code-lines-table');
-const btnInspectorOpen = document.getElementById('btn-inspector-open');
-const btnInspectorReveal = document.getElementById('btn-inspector-reveal');
-const btnInspectorCopy = document.getElementById('btn-inspector-copy');
+  // DSA Studio: Max-Heap
+  heapQueryInput: document.getElementById('heap-query-input'),
+  btnRunHeapSim: document.getElementById('btn-run-heap-sim'),
+  heapExtractionList: document.getElementById('heap-extraction-list'),
 
-const appToast = document.getElementById('app-toast');
+  // DSA Studio: Trie
+  triePrefixInput: document.getElementById('trie-prefix-input'),
+  btnRefreshTrie: document.getElementById('btn-refresh-trie'),
+  trieTotalNodes: document.getElementById('trie-total-nodes'),
+  trieTotalWords: document.getElementById('trie-total-words'),
+  trieTreeCanvas: document.getElementById('trie-tree-canvas'),
+
+  // DSA Studio: Inverted Index
+  invertedFilterInput: document.getElementById('inverted-filter-input'),
+  invertedMatchCount: document.getElementById('inverted-match-count'),
+  invertedIndexTbody: document.getElementById('inverted-index-tbody'),
+
+  // DSA Studio: Stack & Queue
+  btnClearStackHistory: document.getElementById('btn-clear-stack-history'),
+  stackGraphicWrap: document.getElementById('stack-graphic-wrap'),
+  queueSlotsRow: document.getElementById('queue-slots-row'),
+
+  // DSA Studio: Profiler
+  profTotalSearches: document.getElementById('prof-total-searches'),
+  profLastSearchTime: document.getElementById('prof-last-search-time'),
+  profAvgSearchTime: document.getElementById('prof-avg-search-time'),
+  profIndexedDocs: document.getElementById('prof-indexed-docs'),
+
+  // Explorer
+  explorerLocationsList: document.getElementById('explorer-locations-list'),
+  explorerCrumbsTrail: document.getElementById('explorer-crumbs-trail'),
+  explorerFileTree: document.getElementById('explorer-file-tree'),
+  explorerActivePath: document.getElementById('explorer-active-path'),
+  btnIndexThisFolder: document.getElementById('btn-index-this-folder'),
+  btnRevealActiveFolder: document.getElementById('btn-reveal-active-folder'),
+  explorerDocList: document.getElementById('explorer-doc-list'),
+
+  // Drawer
+  inspectorDrawer: document.getElementById('inspector-drawer'),
+  inspectorBackdrop: document.getElementById('inspector-backdrop'),
+  btnCloseDrawer: document.getElementById('btn-close-drawer'),
+  drawerExtBadge: document.getElementById('drawer-ext-badge'),
+  drawerDocName: document.getElementById('drawer-doc-name'),
+  drawerDocPath: document.getElementById('drawer-doc-path'),
+  drawerFileSize: document.getElementById('drawer-file-size'),
+  drawerWordCount: document.getElementById('drawer-word-count'),
+  drawerRelevanceScore: document.getElementById('drawer-relevance-score'),
+  drawerCodeTable: document.getElementById('drawer-code-table'),
+  btnDrawerOpen: document.getElementById('btn-drawer-open'),
+  btnDrawerReveal: document.getElementById('btn-drawer-reveal'),
+  btnDrawerCopy: document.getElementById('btn-drawer-copy'),
+
+  // Toast
+  appToast: document.getElementById('app-toast')
+};
 
 // --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', () => {
+  setupNavigation();
   setupEventListeners();
-  loadLocations();
-  loadStats();
-  loadRecent();
+  loadInitialData();
 });
 
+// --- NAVIGATION LOGIC ---
+function setupNavigation() {
+  elements.navTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const target = tab.getAttribute('data-tab');
+      switchMainTab(target);
+    });
+  });
+
+  elements.dsaSubtabs.forEach(subtab => {
+    subtab.addEventListener('click', () => {
+      const target = subtab.getAttribute('data-subtab');
+      switchDsaSubtab(target);
+    });
+  });
+
+  if (elements.btnBrandHome) {
+    elements.btnBrandHome.addEventListener('click', () => switchMainTab('search'));
+  }
+}
+
+function switchMainTab(tabName) {
+  state.currentTab = tabName;
+  elements.navTabs.forEach(t => t.classList.toggle('active', t.getAttribute('data-tab') === tabName));
+  elements.tabPanels.forEach(p => p.classList.toggle('active', p.id === `panel-${tabName}`));
+
+  if (tabName === 'dsa') {
+    loadDsaSubtabData(state.currentDsaSubtab);
+  } else if (tabName === 'explorer') {
+    browseExplorerPath(state.activeCorpusPath);
+  }
+}
+
+function switchDsaSubtab(subtabName) {
+  state.currentDsaSubtab = subtabName;
+  elements.dsaSubtabs.forEach(s => s.classList.toggle('active', s.getAttribute('data-subtab') === subtabName));
+  elements.dsaPanes.forEach(p => p.classList.toggle('active', p.id === `subpane-${subtabName}`));
+  loadDsaSubtabData(subtabName);
+}
+
+// --- EVENT LISTENERS ---
 function setupEventListeners() {
-  // Global Shortcut: Ctrl+K or / to focus search
+  // Global Shortcut Ctrl+K
   document.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey && e.key === 'k') || (e.key === '/' && document.activeElement !== searchInput)) {
+    if ((e.ctrlKey && e.key === 'k') || (e.key === '/' && document.activeElement !== elements.mainSearchInput)) {
       e.preventDefault();
-      if (searchInput) {
-        searchInput.focus();
-        searchInput.select();
+      switchMainTab('search');
+      if (elements.mainSearchInput) {
+        elements.mainSearchInput.focus();
+        elements.mainSearchInput.select();
       }
     } else if (e.key === 'Escape') {
       hideAutocomplete();
+      closeInspector();
     }
   });
 
-  // REAL-TIME AS-YOU-TYPE INSTANT SEARCH & AUTOCOMPLETE
-  if (searchInput) {
-    searchInput.addEventListener('input', (e) => {
+  // Search Omnibar Input
+  if (elements.mainSearchInput) {
+    elements.mainSearchInput.addEventListener('input', (e) => {
       const val = e.target.value;
-
       if (val.trim()) {
-        if (btnClearInput) btnClearInput.classList.remove('hidden');
+        elements.btnClearSearch.classList.remove('hidden');
       } else {
-        if (btnClearInput) btnClearInput.classList.add('hidden');
+        elements.btnClearSearch.classList.add('hidden');
         hideAutocomplete();
         executeSearch('');
         return;
       }
 
-      // Live Instant Search (debounced 80ms)
-      clearTimeout(searchDebounceTimer);
-      searchDebounceTimer = setTimeout(() => {
-        executeSearch(val.trim());
-      }, 80);
+      // Debounce Instant Search (70ms)
+      clearTimeout(state.debounceTimers.search);
+      state.debounceTimers.search = setTimeout(() => executeSearch(val.trim()), 70);
 
-      // Trie Autocomplete
-      clearTimeout(autocompleteDebounceTimer);
-      autocompleteDebounceTimer = setTimeout(() => {
-        fetchAutocomplete(val.trim());
-      }, 100);
+      // Debounce Trie Autocomplete (90ms)
+      clearTimeout(state.debounceTimers.auto);
+      state.debounceTimers.auto = setTimeout(() => fetchTrieAutocomplete(val.trim()), 90);
     });
 
-    searchInput.addEventListener('keydown', handleSearchKeydown);
+    elements.mainSearchInput.addEventListener('keydown', handleOmnibarKeydown);
   }
 
-  if (btnClearInput) {
-    btnClearInput.addEventListener('click', () => {
-      if (searchInput) {
-        searchInput.value = '';
-        searchInput.focus();
-      }
-      btnClearInput.classList.add('hidden');
+  // Clear Search
+  if (elements.btnClearSearch) {
+    elements.btnClearSearch.addEventListener('click', () => {
+      elements.mainSearchInput.value = '';
+      elements.btnClearSearch.classList.add('hidden');
       hideAutocomplete();
       executeSearch('');
+      elements.mainSearchInput.focus();
     });
   }
 
+  // Hide autocomplete on click outside
   document.addEventListener('click', (e) => {
-    if (!e.target.closest('#search-input-wrapper')) {
+    if (!e.target.closest('#omnibar-wrapper')) {
       hideAutocomplete();
+    }
+    if (!e.target.closest('#corpus-dropdown-trigger')) {
+      elements.corpusDropdownMenu.classList.add('hidden');
     }
   });
 
-  // Filters
-  filterTags.forEach(tag => {
-    tag.addEventListener('click', () => {
-      filterTags.forEach(t => t.classList.remove('active'));
-      tag.classList.add('active');
-      activeFilter = tag.getAttribute('data-filter');
-      renderResults();
+  // Corpus Dropdown Trigger
+  if (elements.corpusDropdownTrigger) {
+    elements.corpusDropdownTrigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      elements.corpusDropdownMenu.classList.toggle('hidden');
+    });
+  }
+
+  // Filter Pills
+  elements.filterPills.forEach(pill => {
+    pill.addEventListener('click', () => {
+      elements.filterPills.forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      state.activeFilter = pill.getAttribute('data-filter');
+      renderSearchResults();
     });
   });
 
-  // Parent Navigation
-  if (btnNavParent) {
-    btnNavParent.addEventListener('click', () => {
-      if (currentBrowsePath) {
-        const parts = currentBrowsePath.split(/[\\/]/).filter(Boolean);
-        if (parts.length > 1) {
-          parts.pop();
-          const parent = parts.join('\\') + (parts.length === 1 && currentBrowsePath.includes(':') ? '\\' : '');
-          browseDirectory(parent);
-        }
+  // Sort Mode
+  if (elements.selectSortMode) {
+    elements.selectSortMode.addEventListener('change', (e) => {
+      state.activeSortMode = e.target.value;
+      renderSearchResults();
+    });
+  }
+
+  // Re-index Header Button
+  if (elements.btnReindexHeader) {
+    elements.btnReindexHeader.addEventListener('click', () => {
+      if (state.activeCorpusPath) indexFolder(state.activeCorpusPath);
+    });
+  }
+
+  // Theme Toggle
+  if (elements.btnThemeToggle) {
+    elements.btnThemeToggle.addEventListener('click', () => {
+      document.body.classList.toggle('light-theme');
+      const isLight = document.body.classList.contains('light-theme');
+      localStorage.setItem('nexus_theme', isLight ? 'light' : 'dark');
+    });
+    if (localStorage.getItem('nexus_theme') === 'light') {
+      document.body.classList.add('light-theme');
+    }
+  }
+
+  // Drawer Controls
+  if (elements.btnCloseDrawer) elements.btnCloseDrawer.addEventListener('click', closeInspector);
+  if (elements.inspectorBackdrop) elements.inspectorBackdrop.addEventListener('click', closeInspector);
+
+  if (elements.btnDrawerOpen) {
+    elements.btnDrawerOpen.addEventListener('click', () => {
+      if (state.selectedDoc) openSystemFile(state.selectedDoc.filePath);
+    });
+  }
+
+  if (elements.btnDrawerReveal) {
+    elements.btnDrawerReveal.addEventListener('click', () => {
+      if (state.selectedDoc) revealFileInExplorer(state.selectedDoc.filePath);
+    });
+  }
+
+  if (elements.btnDrawerCopy) {
+    elements.btnDrawerCopy.addEventListener('click', () => {
+      if (state.selectedDoc) {
+        navigator.clipboard.writeText(state.selectedDoc.filePath);
+        showToast('✓ File path copied to clipboard');
       }
     });
   }
 
-  // Top Nav Actions
-  if (btnReindexCurrent) {
-    btnReindexCurrent.addEventListener('click', () => {
-      if (currentIndexedFolder) indexDirectory(currentIndexedFolder);
+  // DSA Interactive Controls
+  if (elements.btnRunHeapSim) {
+    elements.btnRunHeapSim.addEventListener('click', () => {
+      const q = elements.heapQueryInput.value.trim() || 'java';
+      simulateMaxHeap(q);
     });
   }
 
-  if (btnOpenCurrentFolder) {
-    btnOpenCurrentFolder.addEventListener('click', () => {
-      if (currentIndexedFolder) revealInExplorer(currentIndexedFolder);
+  if (elements.btnRefreshTrie) {
+    elements.btnRefreshTrie.addEventListener('click', () => {
+      const prefix = elements.triePrefixInput.value.trim();
+      loadTrieVisualizer(prefix);
     });
   }
 
-  // Inspector Buttons
-  if (btnInspectorOpen) {
-    btnInspectorOpen.addEventListener('click', () => {
-      if (selectedDocData && selectedDocData.filePath) {
-        openSystemFile(selectedDocData.filePath);
-      }
+  if (elements.triePrefixInput) {
+    elements.triePrefixInput.addEventListener('input', (e) => {
+      clearTimeout(state.debounceTimers.trie);
+      state.debounceTimers.trie = setTimeout(() => loadTrieVisualizer(e.target.value.trim()), 150);
     });
   }
 
-  if (btnInspectorReveal) {
-    btnInspectorReveal.addEventListener('click', () => {
-      if (selectedDocData && selectedDocData.filePath) {
-        revealInExplorer(selectedDocData.filePath);
-      }
+  if (elements.invertedFilterInput) {
+    elements.invertedFilterInput.addEventListener('input', (e) => {
+      clearTimeout(state.debounceTimers.inverted);
+      state.debounceTimers.inverted = setTimeout(() => loadInvertedIndex(e.target.value.trim()), 120);
     });
   }
 
-  if (btnInspectorCopy) {
-    btnInspectorCopy.addEventListener('click', () => {
-      if (selectedDocData && selectedDocData.filePath) {
-        navigator.clipboard.writeText(selectedDocData.filePath);
-        showToast('Copied file path to clipboard');
-      }
+  if (elements.btnClearStackHistory) {
+    elements.btnClearStackHistory.addEventListener('click', clearHistoryAndQueue);
+  }
+
+  // Explorer Actions
+  if (elements.btnIndexThisFolder) {
+    elements.btnIndexThisFolder.addEventListener('click', () => {
+      const path = elements.explorerActivePath.textContent;
+      if (path && path !== '-') indexFolder(path);
     });
   }
 
-  if (previewFilepath) {
-    previewFilepath.addEventListener('click', () => {
-      if (selectedDocData && selectedDocData.filePath) {
-        navigator.clipboard.writeText(selectedDocData.filePath);
-        showToast('Copied file path to clipboard');
-      }
+  if (elements.btnRevealActiveFolder) {
+    elements.btnRevealActiveFolder.addEventListener('click', () => {
+      const path = elements.explorerActivePath.textContent;
+      if (path && path !== '-') revealFileInExplorer(path);
     });
-  }
-
-  if (btnClearRecent) {
-    btnClearRecent.addEventListener('click', clearRecent);
   }
 }
 
-// --- FILE SYSTEM LOCATIONS & BROWSER ---
+// --- INITIAL DATA LOAD ---
+async function loadInitialData() {
+  await loadCorpusLocations();
+  await loadSystemStats();
+  executeSearch('');
+}
 
-async function loadLocations() {
+// --- CORPUS & LOCATIONS ---
+async function loadCorpusLocations() {
   try {
     const res = await fetch(`${API_BASE}/api/fs/locations`);
     if (!res.ok) return;
     const data = await res.json();
 
-    currentIndexedFolder = data.currentIndexed || '';
-    currentBrowsePath = data.currentIndexed || '';
-    renderQuickLocations(data.locations || []);
-    renderBreadcrumbs(data.currentIndexed);
-    browseDirectory(data.currentIndexed);
+    state.activeCorpusPath = data.currentIndexed || '';
+    state.activeCorpusName = getBasename(state.activeCorpusPath) || 'Active Directory';
+
+    if (elements.currentCorpusName) {
+      elements.currentCorpusName.textContent = state.activeCorpusName;
+    }
+
+    renderCorpusDropdown(data.locations || []);
+    renderExplorerLocations(data.locations || []);
   } catch (err) {
-    console.error('Locations error:', err);
+    console.error('Failed to load locations:', err);
   }
 }
 
-function renderQuickLocations(locations) {
-  if (!quickLocationsBar) return;
-  quickLocationsBar.innerHTML = '';
+function renderCorpusDropdown(locations) {
+  if (!elements.corpusLocationsList) return;
+  elements.corpusLocationsList.innerHTML = '';
 
   locations.forEach(loc => {
-    const pill = document.createElement('button');
-    const isActive = loc.path && currentIndexedFolder && loc.path.toLowerCase() === currentIndexedFolder.toLowerCase();
-    pill.className = `location-pill ${isActive ? 'active' : ''}`;
-
-    let icon = '📁';
-    if (loc.type === 'drive') icon = '💻';
-    else if (loc.type === 'project') icon = '🚀';
-    else if (loc.name.includes('Download')) icon = '⬇️';
-    else if (loc.name.includes('Desktop')) icon = '🖥️';
-
-    pill.innerHTML = `<span>${icon}</span> <span>${escapeHtml(loc.name)}</span>`;
-    pill.title = loc.path;
-
-    pill.addEventListener('click', () => {
-      browseDirectory(loc.path);
+    const item = document.createElement('div');
+    const isActive = loc.path.toLowerCase() === state.activeCorpusPath.toLowerCase();
+    item.className = `dropdown-item ${isActive ? 'active' : ''}`;
+    item.innerHTML = `
+      <span>${loc.type === 'docs' ? '📚' : loc.type === 'drive' ? '💻' : '📁'}</span>
+      <span>${escapeHtml(loc.name)}</span>
+    `;
+    item.addEventListener('click', () => {
+      elements.corpusDropdownMenu.classList.add('hidden');
+      indexFolder(loc.path);
     });
-
-    quickLocationsBar.appendChild(pill);
+    elements.corpusLocationsList.appendChild(item);
   });
 }
 
-async function browseDirectory(path) {
-  if (!path) return;
-  currentBrowsePath = path;
+function renderExplorerLocations(locations) {
+  if (!elements.explorerLocationsList) return;
+  elements.explorerLocationsList.innerHTML = '';
 
+  locations.forEach(loc => {
+    const btn = document.createElement('button');
+    btn.className = 'location-item-btn';
+    btn.innerHTML = `
+      <span>${loc.type === 'docs' ? '📚' : loc.type === 'drive' ? '💻' : '📁'}</span>
+      <span>${escapeHtml(loc.name)}</span>
+    `;
+    btn.addEventListener('click', () => browseExplorerPath(loc.path));
+    elements.explorerLocationsList.appendChild(btn);
+  });
+}
+
+// --- STATS & METRICS ---
+async function loadSystemStats() {
   try {
-    const res = await fetch(`${API_BASE}/api/fs/browse?path=${encodeURIComponent(path)}`);
-    if (!res.ok) throw new Error('Cannot read directory: ' + path);
+    const res = await fetch(`${API_BASE}/api/stats`);
+    if (!res.ok) return;
     const data = await res.json();
 
-    renderBreadcrumbs(data.currentPath || path);
-    renderFolderItems(data.items || [], data.currentPath || path);
+    if (elements.headerStatDocs) elements.headerStatDocs.textContent = data.docCount || 0;
+    if (elements.headerStatWords) elements.headerStatWords.textContent = (data.wordCount || 0).toLocaleString();
+    if (elements.profIndexedDocs) elements.profIndexedDocs.textContent = data.docCount || 0;
+    if (elements.profTotalSearches) elements.profTotalSearches.textContent = data.totalSearches || 0;
+    if (elements.profLastSearchTime) elements.profLastSearchTime.textContent = `${data.lastSearchTimeMs || '0.000'} ms`;
+    if (elements.profAvgSearchTime) elements.profAvgSearchTime.textContent = `${data.avgSearchTimeMs || '0.000'} ms`;
   } catch (err) {
-    if (dirBrowserList) {
-      dirBrowserList.innerHTML = `<div class="sidebar-placeholder" style="color:#ef4444; padding:12px;">${escapeHtml(err.message)}</div>`;
-    }
+    console.error('Stats error:', err);
   }
 }
 
-function renderBreadcrumbs(fullPath) {
-  if (!pathCrumbsBox || !fullPath) return;
-  const parts = fullPath.split(/[\\/]/).filter(Boolean);
-  pathCrumbsBox.innerHTML = '';
+// --- SEARCH & RANKING (MAX-HEAP & INVERTED INDEX) ---
+async function executeSearch(query) {
+  query = (query || '').trim();
+  state.currentQuery = query;
 
-  let accumulated = '';
-  parts.forEach((part, index) => {
-    if (index === 0 && fullPath.includes(':')) {
-      accumulated = part + '\\';
-    } else {
-      accumulated += (accumulated.endsWith('\\') ? '' : '\\') + part;
-    }
-
-    const pathToBrowse = accumulated;
-
-    const span = document.createElement('span');
-    span.className = 'crumb-link';
-    span.textContent = part;
-    span.title = pathToBrowse;
-    span.addEventListener('click', () => browseDirectory(pathToBrowse));
-
-    pathCrumbsBox.appendChild(span);
-
-    if (index < parts.length - 1) {
-      const sep = document.createElement('span');
-      sep.className = 'crumb-separator';
-      sep.textContent = '›';
-      pathCrumbsBox.appendChild(sep);
-    }
-  });
-}
-
-function renderFolderItems(items, currentPath) {
-  if (!dirBrowserList) return;
-  dirBrowserList.innerHTML = '';
-
-  // Header quick index button
-  const topAction = document.createElement('div');
-  topAction.style.cssText = 'padding:6px 8px; margin-bottom:4px; display:flex; align-items:center; justify-content:space-between; background:var(--bg-input); border-radius:var(--radius-xs); border:1px solid var(--border-subtle);';
-  topAction.innerHTML = `
-    <span style="font-size:11px; color:var(--text-secondary); font-weight:600;">Active Folder</span>
-    <button class="btn-text-xs" style="color:var(--accent-blue); font-weight:700;" title="Index all files inside this directory">⚡ Index Here</button>
-  `;
-  topAction.querySelector('button').addEventListener('click', (e) => {
-    e.stopPropagation();
-    indexDirectory(currentPath);
-  });
-  dirBrowserList.appendChild(topAction);
-
-  if (!items || items.length === 0) {
-    dirBrowserList.innerHTML += '<div class="sidebar-placeholder">Folder is empty</div>';
+  if (!query) {
+    loadAllIndexedDocs();
     return;
   }
 
-  items.forEach(item => {
-    const row = document.createElement('div');
-    row.className = 'dir-row';
-
-    const icon = item.isDir ? '📁' : '📄';
-
-    row.innerHTML = `
-      <div class="dir-title-wrap">
-        <span>${icon}</span>
-        <span title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span>
-      </div>
-      <div>
-        ${item.isDir 
-          ? `<button class="dir-btn-quick-index" title="Index this folder">⚡ Index</button>`
-          : `<span style="font-size:10px; color:var(--text-muted); font-family:var(--font-mono);">${item.sizeFormatted || ''}</span>`
-        }
-      </div>
-    `;
-
-    row.addEventListener('click', () => {
-      if (item.isDir) {
-        browseDirectory(item.path);
-      } else {
-        openFileInInspector(item.path, item.name);
-      }
-    });
-
-    if (item.isDir) {
-      const btn = row.querySelector('.dir-btn-quick-index');
-      if (btn) {
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          indexDirectory(item.path);
-        });
-      }
-    }
-
-    dirBrowserList.appendChild(row);
-  });
-}
-
-// --- INDEXING ---
-async function indexDirectory(folderPath) {
-  if (!folderPath) return;
-  showToast(`Indexing: ${folderPath}...`);
+  hideAutocomplete();
 
   try {
-    const res = await fetch(`${API_BASE}/api/fs/index`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: folderPath })
-    });
-
+    const res = await fetch(`${API_BASE}/api/search?q=${encodeURIComponent(query)}`);
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Indexing failed');
+    if (!res.ok) throw new Error(data.error || 'Search failed');
 
-    currentIndexedFolder = data.folderPath;
-    if (statDocCount) statDocCount.textContent = data.docCount;
-    if (statWordCount) statWordCount.textContent = data.wordCount;
+    state.searchResults = data.results || [];
 
-    showToast(`✓ Indexed ${data.docCount} files (${data.wordCount} words)`);
-    loadLocations();
-    loadStats();
+    if (elements.teleTotalTime) elements.teleTotalTime.textContent = `${data.durationMs} ms`;
+    if (elements.teleLookupTime) elements.teleLookupTime.textContent = `${data.lookupMs || '0.010'} ms`;
+    if (elements.teleHeapTime) elements.teleHeapTime.textContent = `${data.heapSortMs || '0.015'} ms`;
+    if (elements.teleMatchCount) elements.teleMatchCount.textContent = `${data.totalMatches} matches`;
 
-    // Rerun search with current query or refresh feed
-    executeSearch(searchInput ? searchInput.value.trim() : '');
+    renderSearchResults();
+    loadSystemStats();
   } catch (err) {
-    showToast(err.message, true);
+    if (elements.resultsContainer) {
+      elements.resultsContainer.innerHTML = `
+        <div class="feed-empty-state">
+          <div class="empty-icon-wrap" style="color:var(--accent-rose);">⚠️</div>
+          <h3>Search Error</h3>
+          <p>${escapeHtml(err.message)}</p>
+        </div>
+      `;
+    }
   }
 }
 
-// --- AUTOCOMPLETE ---
-async function fetchAutocomplete(prefix) {
+async function loadAllIndexedDocs() {
+  try {
+    const res = await fetch(`${API_BASE}/api/stats`);
+    if (!res.ok) return;
+    const data = await res.json();
+
+    state.searchResults = (data.documents || []).map((d, i) => ({
+      rank: i + 1,
+      fileName: d.fileName,
+      filePath: d.filePath,
+      extension: getFileExtension(d.fileName),
+      fileSizeFormatted: d.fileSizeFormatted,
+      lastModified: d.lastModified,
+      wordCount: d.wordCount,
+      score: 0,
+      snippets: []
+    }));
+
+    if (elements.teleTotalTime) elements.teleTotalTime.textContent = '0.000 ms';
+    if (elements.teleLookupTime) elements.teleLookupTime.textContent = '0.000 ms';
+    if (elements.teleHeapTime) elements.teleHeapTime.textContent = '0.000 ms';
+    if (elements.teleMatchCount) elements.teleMatchCount.textContent = `${state.searchResults.length} indexed files`;
+
+    renderSearchResults();
+  } catch (err) {
+    console.error('Load all error:', err);
+  }
+}
+
+function renderSearchResults() {
+  if (!elements.resultsContainer) return;
+
+  let list = filterResults(state.searchResults, state.activeFilter);
+  list = sortResults(list, state.activeSortMode);
+
+  if (list.length === 0) {
+    elements.resultsContainer.innerHTML = `
+      <div class="feed-empty-state">
+        <div class="empty-icon-wrap">🔍</div>
+        <h3>No matching files found</h3>
+        <p>No documents matched "<strong>${escapeHtml(state.currentQuery)}</strong>" in the active corpus.</p>
+      </div>
+    `;
+    return;
+  }
+
+  elements.resultsContainer.innerHTML = '';
+
+  list.forEach((item, index) => {
+    const card = document.createElement('div');
+    const rankClass = index === 0 ? 'rank-1' : index === 1 ? 'rank-2' : index === 2 ? 'rank-3' : '';
+    card.className = `result-card ${rankClass}`;
+
+    const snippetText = item.snippets && item.snippets.length > 0 ? item.snippets[0].text : '';
+
+    card.innerHTML = `
+      <div class="result-header-row">
+        <div class="result-title-wrap">
+          <span class="rank-badge">#${index + 1}</span>
+          <span class="doc-name" title="Click to view in inspector">${escapeHtml(item.fileName)}</span>
+        </div>
+        ${item.score > 0 ? `
+          <div class="score-badge-wrap" title="Max-Heap Priority Score (Keyword Frequency)">
+            <span>🎯 Score:</span>
+            <strong>${item.score}</strong>
+          </div>
+        ` : ''}
+      </div>
+
+      ${snippetText ? `
+        <div class="result-snippet-box">
+          ${highlightKeywords(escapeHtml(snippetText), state.currentQuery)}
+        </div>
+      ` : ''}
+
+      <div class="result-footer-row">
+        <div class="result-meta-tags">
+          <span>📁 ${escapeHtml(item.extension.toUpperCase())}</span>
+          <span>&bull;</span>
+          <span>${escapeHtml(item.fileSizeFormatted || '0 B')}</span>
+          <span>&bull;</span>
+          <span>${item.wordCount || 0} words</span>
+          <span>&bull;</span>
+          <span>${escapeHtml(item.lastModified || '')}</span>
+        </div>
+        <div class="result-actions-group">
+          <button class="btn-card-action primary btn-inspect" title="Inspect full document content">👁️ Preview</button>
+          <button class="btn-card-action btn-reveal" title="Show in Windows File Explorer">📂 Explorer</button>
+          <button class="btn-card-action btn-open" title="Open file in default editor">🚀 Open</button>
+        </div>
+      </div>
+    `;
+
+    // Bind Actions
+    card.querySelector('.doc-name').addEventListener('click', () => openInspector(item));
+    card.querySelector('.btn-inspect').addEventListener('click', () => openInspector(item));
+    card.querySelector('.btn-reveal').addEventListener('click', () => revealFileInExplorer(item.filePath));
+    card.querySelector('.btn-open').addEventListener('click', () => openSystemFile(item.filePath));
+
+    elements.resultsContainer.appendChild(card);
+  });
+}
+
+function filterResults(list, filter) {
+  if (filter === 'all') return list;
+  const codeExts = ['java', 'py', 'js', 'ts', 'c', 'cpp', 'h', 'cs', 'html', 'css', 'sql', 'sh', 'bat'];
+  const docExts = ['txt', 'md', 'markdown', 'log', 'pdf', 'docx'];
+  const dataExts = ['json', 'xml', 'csv', 'yml', 'yaml', 'toml', 'properties'];
+
+  return list.filter(r => {
+    const ext = (r.extension || '').toLowerCase();
+    if (filter === 'code') return codeExts.includes(ext);
+    if (filter === 'docs') return docExts.includes(ext);
+    if (filter === 'data') return dataExts.includes(ext);
+    return true;
+  });
+}
+
+function sortResults(list, sortMode) {
+  const copy = [...list];
+  if (sortMode === 'heap') {
+    // Already sorted by Max-Heap backend
+    return copy;
+  } else if (sortMode === 'name') {
+    return copy.sort((a, b) => a.fileName.localeCompare(b.fileName));
+  } else if (sortMode === 'size') {
+    return copy.sort((a, b) => (b.wordCount || 0) - (a.wordCount || 0));
+  } else if (sortMode === 'date') {
+    return copy.sort((a, b) => (b.lastModified || '').localeCompare(a.lastModified || ''));
+  }
+  return copy;
+}
+
+// --- TRIE AUTOCOMPLETE ---
+async function fetchTrieAutocomplete(prefix) {
   if (!prefix) return;
   try {
     const res = await fetch(`${API_BASE}/api/autocomplete?q=${encodeURIComponent(prefix)}`);
     if (!res.ok) return;
     const data = await res.json();
-    renderAutocomplete(prefix, data.suggestions || []);
+    renderTrieAutocomplete(prefix, data.suggestions || []);
   } catch (err) {
-    console.error('Autocomplete error:', err);
+    console.error('Trie autocomplete error:', err);
   }
 }
 
-function renderAutocomplete(prefix, suggestions) {
-  currentSuggestions = suggestions;
-  autoHighlightIndex = -1;
+function renderTrieAutocomplete(prefix, suggestions) {
+  state.trieSuggestions = suggestions;
+  state.autoHighlightIdx = -1;
 
-  if (!autocompleteDropdown || !autocompleteList) return;
+  if (!elements.trieAutocompleteBox || !elements.autocompleteItemsList) return;
 
   if (suggestions.length === 0) {
     hideAutocomplete();
     return;
   }
 
-  autocompleteList.innerHTML = '';
-  suggestions.forEach((word) => {
+  elements.autocompleteItemsList.innerHTML = '';
+  suggestions.forEach((word, idx) => {
     const li = document.createElement('li');
-    li.className = 'auto-row';
+    li.className = 'auto-item';
 
     const lowerWord = word.toLowerCase();
     const lowerPrefix = prefix.toLowerCase();
@@ -431,406 +634,499 @@ function renderAutocomplete(prefix, suggestions) {
       display = escapeHtml(word);
     }
 
-    li.innerHTML = `<span>${display}</span> <span style="color:var(--text-muted); font-size:10px;">↵</span>`;
+    li.innerHTML = `
+      <span>${display}</span>
+      <span style="font-family:var(--font-mono); font-size:10px; color:var(--text-muted);">↵ select</span>
+    `;
+
     li.addEventListener('click', () => {
-      if (searchInput) searchInput.value = word;
+      elements.mainSearchInput.value = word;
       hideAutocomplete();
       executeSearch(word);
     });
 
-    autocompleteList.appendChild(li);
+    elements.autocompleteItemsList.appendChild(li);
   });
 
-  autocompleteDropdown.classList.remove('hidden');
+  elements.trieAutocompleteBox.classList.remove('hidden');
 }
 
 function hideAutocomplete() {
-  if (autocompleteDropdown) autocompleteDropdown.classList.add('hidden');
-  autoHighlightIndex = -1;
-  currentSuggestions = [];
+  if (elements.trieAutocompleteBox) elements.trieAutocompleteBox.classList.add('hidden');
+  state.autoHighlightIdx = -1;
+  state.trieSuggestions = [];
 }
 
-function handleSearchKeydown(e) {
-  if (!autocompleteList) return;
-  const items = autocompleteList.querySelectorAll('.auto-row');
+function handleOmnibarKeydown(e) {
+  if (!elements.autocompleteItemsList) return;
+  const items = elements.autocompleteItemsList.querySelectorAll('.auto-item');
 
   if (e.key === 'ArrowDown') {
-    if (autocompleteDropdown && !autocompleteDropdown.classList.contains('hidden') && items.length > 0) {
+    if (elements.trieAutocompleteBox && !elements.trieAutocompleteBox.classList.contains('hidden') && items.length > 0) {
       e.preventDefault();
-      autoHighlightIndex = (autoHighlightIndex + 1) % items.length;
-      items.forEach((it, idx) => it.classList.toggle('active', idx === autoHighlightIndex));
-    } else if (currentResults.length > 0) {
-      e.preventDefault();
-      selectResultCard(selectedIndex + 1);
+      state.autoHighlightIdx = (state.autoHighlightIdx + 1) % items.length;
+      items.forEach((it, idx) => it.classList.toggle('active', idx === state.autoHighlightIdx));
     }
   } else if (e.key === 'ArrowUp') {
-    if (autocompleteDropdown && !autocompleteDropdown.classList.contains('hidden') && items.length > 0) {
+    if (elements.trieAutocompleteBox && !elements.trieAutocompleteBox.classList.contains('hidden') && items.length > 0) {
       e.preventDefault();
-      autoHighlightIndex = (autoHighlightIndex - 1 + items.length) % items.length;
-      items.forEach((it, idx) => it.classList.toggle('active', idx === autoHighlightIndex));
-    } else if (currentResults.length > 0) {
-      e.preventDefault();
-      selectResultCard(selectedIndex - 1);
+      state.autoHighlightIdx = (state.autoHighlightIdx - 1 + items.length) % items.length;
+      items.forEach((it, idx) => it.classList.toggle('active', idx === state.autoHighlightIdx));
     }
   } else if (e.key === 'Enter') {
-    if (autocompleteDropdown && !autocompleteDropdown.classList.contains('hidden') && autoHighlightIndex >= 0 && currentSuggestions[autoHighlightIndex]) {
+    if (elements.trieAutocompleteBox && !elements.trieAutocompleteBox.classList.contains('hidden') && state.autoHighlightIdx >= 0) {
       e.preventDefault();
-      const chosen = currentSuggestions[autoHighlightIndex];
-      if (searchInput) searchInput.value = chosen;
+      const chosen = state.trieSuggestions[state.autoHighlightIdx];
+      elements.mainSearchInput.value = chosen;
       hideAutocomplete();
       executeSearch(chosen);
     } else {
       hideAutocomplete();
-      if (searchInput) executeSearch(searchInput.value);
+      executeSearch(elements.mainSearchInput.value);
     }
   } else if (e.key === 'Escape') {
     hideAutocomplete();
   }
 }
 
-// --- SEARCH & FEED RENDERING ---
-async function executeSearch(query) {
-  query = (query || '').trim();
-  currentQuery = query;
-
-  if (!query) {
-    if (feedCounter) feedCounter.textContent = 'All indexed files';
-    fetchAllIndexedDocs();
-    return;
+// --- DSA STUDIO SUBTAB LOADERS ---
+async function loadDsaSubtabData(subtab) {
+  if (subtab === 'heap') {
+    simulateMaxHeap(state.currentQuery || 'java');
+  } else if (subtab === 'trie') {
+    loadTrieVisualizer('');
+  } else if (subtab === 'inverted') {
+    loadInvertedIndex('');
+  } else if (subtab === 'stack' || subtab === 'queue' || subtab === 'profiler') {
+    loadDsaOverview();
   }
+}
 
-  hideAutocomplete();
-  if (feedCounter) feedCounter.textContent = 'Searching...';
+// 1. Max-Heap Simulation
+async function simulateMaxHeap(query) {
+  if (!elements.heapExtractionList) return;
+  elements.heapExtractionList.innerHTML = '<div class="dsa-placeholder-text">Executing Binary Max-Heap extraction...</div>';
 
   try {
-    const res = await fetch(`${API_BASE}/api/search?q=${encodeURIComponent(query)}`);
+    const res = await fetch(`${API_BASE}/api/dsa/heap?q=${encodeURIComponent(query)}`);
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Search error');
+    if (!res.ok) throw new Error(data.error || 'Heap simulation failed');
 
-    currentResults = data.results || [];
-    if (feedCounter) feedCounter.textContent = `${data.totalMatches} matches (${data.durationMs} ms)`;
-
-    renderResults();
-    loadRecent();
-
-    // Auto-select top result
-    if (currentResults.length > 0) {
-      selectResultCard(0);
-    } else {
-      if (inspectorContent) inspectorContent.classList.add('hidden');
-      if (inspectorEmpty) inspectorEmpty.classList.remove('hidden');
+    if (!data.extractionSteps || data.extractionSteps.length === 0) {
+      elements.heapExtractionList.innerHTML = `<div class="dsa-placeholder-text">No documents matched query "${escapeHtml(query)}" to insert into Max-Heap.</div>`;
+      return;
     }
-  } catch (err) {
-    if (resultsScroll) {
-      resultsScroll.innerHTML = `
-        <div class="feed-empty-state">
-          <h3 style="color:#ef4444;">Search Error</h3>
-          <p>${escapeHtml(err.message)}</p>
+
+    elements.heapExtractionList.innerHTML = '';
+    data.extractionSteps.forEach(step => {
+      const div = document.createElement('div');
+      div.className = 'heap-step-item';
+      div.innerHTML = `
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span class="heap-step-badge">Step ${step.step}</span>
+          <strong style="color:var(--text-primary);">${escapeHtml(step.fileName)}</strong>
+        </div>
+        <div style="display:flex; align-items:center; gap:12px;">
+          <span style="color:var(--accent-cyan); font-family:var(--font-mono); font-weight:700;">Score: ${step.score}</span>
+          <span style="font-size:11px; color:var(--text-muted);">${escapeHtml(step.note)}</span>
         </div>
       `;
-    }
+      elements.heapExtractionList.appendChild(div);
+    });
+  } catch (err) {
+    elements.heapExtractionList.innerHTML = `<div class="dsa-placeholder-text" style="color:var(--accent-rose);">${escapeHtml(err.message)}</div>`;
   }
 }
 
-async function fetchAllIndexedDocs() {
+// 2. Trie Interactive Visualizer
+async function loadTrieVisualizer(prefix) {
+  if (!elements.trieTreeCanvas) return;
+  elements.trieTreeCanvas.innerHTML = '<div class="dsa-placeholder-text">Traversing Trie prefix branches...</div>';
+
   try {
-    const res = await fetch(`${API_BASE}/api/stats`);
-    if (!res.ok) return;
+    const res = await fetch(`${API_BASE}/api/dsa/trie?prefix=${encodeURIComponent(prefix)}&depth=3`);
     const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Trie error');
 
-    currentResults = (data.documents || []).map((d, idx) => ({
-      rank: idx + 1,
-      fileName: d.fileName,
-      filePath: d.filePath,
-      extension: getFileExtension(d.fileName),
-      fileSizeFormatted: d.fileSizeFormatted,
-      lastModified: d.lastModified,
-      wordCount: d.wordCount,
-      score: 0,
-      snippets: []
-    }));
+    if (elements.trieTotalNodes) elements.trieTotalNodes.textContent = (data.nodeCount || 0).toLocaleString();
+    if (elements.trieTotalWords) elements.trieTotalWords.textContent = (data.wordCount || 0).toLocaleString();
 
-    if (feedCounter) feedCounter.textContent = `${currentResults.length} files`;
-    renderResults();
+    elements.trieTreeCanvas.innerHTML = '';
+    const rootEl = renderTrieNode(data.tree);
+    elements.trieTreeCanvas.appendChild(rootEl);
+  } catch (err) {
+    elements.trieTreeCanvas.innerHTML = `<div class="dsa-placeholder-text" style="color:var(--accent-rose);">${escapeHtml(err.message)}</div>`;
+  }
+}
 
-    if (currentResults.length > 0) {
-      selectResultCard(0);
+function renderTrieNode(node) {
+  const wrap = document.createElement('div');
+  wrap.className = 'trie-node-wrapper';
+
+  const bubble = document.createElement('div');
+  bubble.className = `trie-node-bubble ${node.isEnd ? 'is-end' : ''}`;
+  bubble.textContent = node.name || 'ROOT';
+  bubble.title = `Prefix: "${node.prefix || ''}" | IsEndOfWord: ${node.isEnd}`;
+
+  wrap.appendChild(bubble);
+
+  if (node.children && node.children.length > 0) {
+    const childrenContainer = document.createElement('div');
+    childrenContainer.className = 'trie-children-container';
+    node.children.forEach(child => {
+      childrenContainer.appendChild(renderTrieNode(child));
+    });
+    wrap.appendChild(childrenContainer);
+  }
+
+  return wrap;
+}
+
+// 3. Inverted Index Explorer
+async function loadInvertedIndex(filter) {
+  if (!elements.invertedIndexTbody) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/dsa/inverted-index?q=${encodeURIComponent(filter)}&limit=80`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Inverted index error');
+
+    if (elements.invertedMatchCount) {
+      elements.invertedMatchCount.textContent = `${data.matchedTermsCount || 0} unique words in index`;
+    }
+
+    elements.invertedIndexTbody.innerHTML = '';
+
+    (data.terms || []).forEach(termItem => {
+      const tr = document.createElement('tr');
+
+      const postingsHtml = (termItem.postings || []).map(p => `
+        <span class="posting-chip">
+          📄 ${escapeHtml(p.fileName)} (<span class="posting-freq">${p.frequency}</span>)
+        </span>
+      `).join('');
+
+      tr.innerHTML = `
+        <td><strong style="color:var(--accent-cyan); font-family:var(--font-mono);">${escapeHtml(termItem.term)}</strong></td>
+        <td><span class="dsa-badge-sm">${termItem.docCount} docs</span></td>
+        <td>${postingsHtml}</td>
+      `;
+
+      elements.invertedIndexTbody.appendChild(tr);
+    });
+  } catch (err) {
+    console.error('Inverted index error:', err);
+  }
+}
+
+// 4. DSA Overview (Stack, Queue, Profiler)
+async function loadDsaOverview() {
+  try {
+    const res = await fetch(`${API_BASE}/api/dsa/overview`);
+    const data = await res.json();
+    if (!res.ok) return;
+
+    // Render Stack (LIFO)
+    if (elements.stackGraphicWrap) {
+      elements.stackGraphicWrap.innerHTML = '';
+      const stackItems = (data.stack && data.stack.items) || [];
+      if (stackItems.length === 0) {
+        elements.stackGraphicWrap.innerHTML = '<div class="dsa-placeholder-text">History stack is empty. Run a search to push onto stack.</div>';
+      } else {
+        stackItems.forEach((q, idx) => {
+          const isTop = idx === 0;
+          const slot = document.createElement('div');
+          slot.className = `stack-slot ${isTop ? 'top-of-stack' : ''}`;
+          slot.innerHTML = `
+            <span>🔍 ${escapeHtml(q)}</span>
+            ${isTop ? '<span class="top-indicator">TOP (LIFO)</span>' : `<span style="font-size:10px; color:var(--text-muted);">Slot #${stackItems.length - idx}</span>`}
+          `;
+          elements.stackGraphicWrap.appendChild(slot);
+        });
+      }
+    }
+
+    // Render Queue (FIFO)
+    if (elements.queueSlotsRow) {
+      elements.queueSlotsRow.innerHTML = '';
+      const queueItems = (data.queue && data.queue.items) || [];
+      const cap = (data.queue && data.queue.capacity) || 5;
+
+      for (let i = 0; i < cap; i++) {
+        const slotCard = document.createElement('div');
+        const hasItem = i < queueItems.length;
+        slotCard.className = `queue-slot-card ${hasItem ? 'occupied' : ''}`;
+
+        if (hasItem) {
+          const isHead = i === 0;
+          const isTail = i === queueItems.length - 1;
+          slotCard.innerHTML = `
+            ${isHead ? '<span class="queue-head-tag">HEAD (EVICT)</span>' : ''}
+            ${isTail ? '<span class="queue-tail-tag">TAIL (NEW)</span>' : ''}
+            <div style="font-size:12.5px; font-weight:700; color:var(--text-primary); margin-top:4px;">${escapeHtml(queueItems[i])}</div>
+            <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">Slot [${i}]</div>
+          `;
+        } else {
+          slotCard.innerHTML = `
+            <div style="font-size:11px; color:var(--text-muted);">Empty Slot</div>
+            <div style="font-size:9.5px; color:var(--border-medium); margin-top:2px;">Slot [${i}]</div>
+          `;
+        }
+
+        elements.queueSlotsRow.appendChild(slotCard);
+      }
+    }
+
+    // Profiler metrics
+    if (data.telemetry) {
+      if (elements.profTotalSearches) elements.profTotalSearches.textContent = data.telemetry.totalSearches || 0;
+      if (elements.profLastSearchTime) elements.profLastSearchTime.textContent = `${data.telemetry.lastSearchTimeMs || '0.000'} ms`;
+      if (elements.profAvgSearchTime) elements.profAvgSearchTime.textContent = `${data.telemetry.avgSearchTimeMs || '0.000'} ms`;
     }
   } catch (err) {
-    console.error('Fetch all error:', err);
+    console.error('DSA overview error:', err);
   }
 }
 
-function renderResults() {
-  if (!resultsScroll) return;
-  const filtered = filterList(currentResults, activeFilter);
-
-  if (filtered.length === 0) {
-    resultsScroll.innerHTML = `
-      <div class="feed-empty-state">
-        <div class="empty-icon-wrap">📂</div>
-        <h3>No Files Found</h3>
-        <p>No files match "<strong>${escapeHtml(currentQuery)}</strong>" in the indexed directory.</p>
-      </div>
-    `;
-    return;
-  }
-
-  resultsScroll.innerHTML = '';
-
-  filtered.forEach((item, index) => {
-    const card = document.createElement('div');
-    card.className = `file-card ${index === selectedIndex ? 'selected' : ''}`;
-    card.setAttribute('data-idx', index);
-
-    const ext = (item.extension || 'file').toLowerCase();
-    const snippetText = item.snippets && item.snippets.length > 0 ? item.snippets[0].text : '';
-
-    card.innerHTML = `
-      <div class="card-top-row">
-        <div class="card-title-group">
-          <span class="ext-badge ${ext}">${escapeHtml(ext)}</span>
-          <span class="card-name" title="${escapeHtml(item.fileName)}">${escapeHtml(item.fileName)}</span>
-        </div>
-        ${item.score > 0 ? `<span class="card-matches-count">${item.score} ${item.score === 1 ? 'hit' : 'hits'}</span>` : ''}
-      </div>
-
-      ${snippetText ? `
-        <div class="card-snippet">
-          ${highlightKeyword(escapeHtml(snippetText), currentQuery)}
-        </div>
-      ` : ''}
-
-      <div class="card-details-row">
-        <span>${escapeHtml(item.fileSizeFormatted || '')}</span>
-        <span>${escapeHtml(item.lastModified || '')}</span>
-      </div>
-    `;
-
-    card.addEventListener('click', () => {
-      selectResultCard(index);
-    });
-
-    resultsScroll.appendChild(card);
-  });
-}
-
-function selectResultCard(index) {
-  const filtered = filterList(currentResults, activeFilter);
-  if (filtered.length === 0) return;
-
-  if (index < 0) index = 0;
-  if (index >= filtered.length) index = filtered.length - 1;
-
-  selectedIndex = index;
-
-  if (resultsScroll) {
-    const cards = resultsScroll.querySelectorAll('.file-card');
-    cards.forEach((c, idx) => c.classList.toggle('selected', idx === index));
-
-    if (cards[index]) {
-      cards[index].scrollIntoView({ block: 'nearest' });
-    }
-  }
-
-  const selectedItem = filtered[index];
-  if (selectedItem) {
-    openFileInInspector(selectedItem.filePath, selectedItem.fileName, selectedItem);
+async function clearHistoryAndQueue() {
+  try {
+    await fetch(`${API_BASE}/api/clear`, { method: 'POST' });
+    showToast('✓ Search history stack & recent queue cleared');
+    loadDsaOverview();
+  } catch (err) {
+    showToast('Failed to clear history: ' + err.message);
   }
 }
 
-function filterList(results, filter) {
-  if (filter === 'all') return results;
-  const codeExts = ['java', 'py', 'js', 'ts', 'c', 'cpp', 'h', 'cs', 'html', 'css', 'sql', 'sh', 'bat'];
-  const docExts = ['txt', 'md', 'markdown', 'log'];
-  const dataExts = ['json', 'xml', 'csv', 'yml', 'yaml', 'toml', 'ini', 'properties'];
-
-  return results.filter(r => {
-    const ext = (r.extension || '').toLowerCase();
-    if (filter === 'code') return codeExts.includes(ext);
-    if (filter === 'docs') return docExts.includes(ext);
-    if (filter === 'data') return dataExts.includes(ext);
-    return true;
-  });
-}
-
-// --- INSPECTOR PANE ---
-
-async function openFileInInspector(filePath, fileName, optionalMeta) {
-  selectedDocData = { filePath, fileName };
-
-  if (inspectorEmpty) inspectorEmpty.classList.add('hidden');
-  if (inspectorContent) inspectorContent.classList.remove('hidden');
-
-  if (previewFilename) previewFilename.textContent = fileName || '';
-  if (previewFilepath) previewFilepath.textContent = filePath || '';
-
-  const ext = getFileExtension(fileName);
-  if (previewExtTag) {
-    previewExtTag.textContent = ext.toUpperCase() || 'FILE';
-    previewExtTag.className = `ext-tag ${ext.toLowerCase()}`;
-  }
-
-  if (optionalMeta) {
-    if (previewSize) previewSize.textContent = optionalMeta.fileSizeFormatted || '0 B';
-    if (previewWords) previewWords.textContent = optionalMeta.wordCount || '0';
-    if (previewScore) previewScore.textContent = optionalMeta.score || '0';
-  } else {
-    if (previewSize) previewSize.textContent = '-';
-    if (previewWords) previewWords.textContent = '-';
-    if (previewScore) previewScore.textContent = '-';
-  }
-
-  if (codeLinesTable) {
-    codeLinesTable.innerHTML = '<div style="padding:16px; color:var(--text-muted);">Reading file content...</div>';
-  }
+// --- CORPUS & FILE EXPLORER ---
+async function browseExplorerPath(path) {
+  if (!path) return;
 
   try {
-    const res = await fetch(`${API_BASE}/api/document?path=${encodeURIComponent(filePath)}`);
+    const res = await fetch(`${API_BASE}/api/fs/browse?path=${encodeURIComponent(path)}`);
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Cannot read file');
+    if (!res.ok) throw new Error(data.error || 'Cannot read folder');
 
-    if (previewSize) previewSize.textContent = data.fileSizeFormatted || previewSize.textContent;
-    if (previewWords) previewWords.textContent = data.wordCount || previewWords.textContent;
+    if (elements.explorerActivePath) {
+      elements.explorerActivePath.textContent = data.currentPath || path;
+    }
+
+    renderExplorerCrumbs(data.currentPath || path);
+    renderExplorerTree(data.items || [], data.currentPath || path);
+  } catch (err) {
+    if (elements.explorerDocList) {
+      elements.explorerDocList.innerHTML = `<div class="dsa-placeholder-text" style="color:var(--accent-rose);">${escapeHtml(err.message)}</div>`;
+    }
+  }
+}
+
+function renderExplorerCrumbs(fullPath) {
+  if (!elements.explorerCrumbsTrail || !fullPath) return;
+  const parts = fullPath.split(/[\\/]/).filter(Boolean);
+  elements.explorerCrumbsTrail.innerHTML = '';
+
+  let accumulated = '';
+  parts.forEach((part, index) => {
+    if (index === 0 && fullPath.includes(':')) {
+      accumulated = part + '\\';
+    } else {
+      accumulated += (accumulated.endsWith('\\') ? '' : '\\') + part;
+    }
+
+    const pathToBrowse = accumulated;
+    const span = document.createElement('span');
+    span.className = 'crumb-part';
+    span.textContent = part;
+    span.addEventListener('click', () => browseExplorerPath(pathToBrowse));
+    elements.explorerCrumbsTrail.appendChild(span);
+
+    if (index < parts.length - 1) {
+      const sep = document.createElement('span');
+      sep.textContent = '›';
+      sep.style.color = 'var(--text-muted)';
+      elements.explorerCrumbsTrail.appendChild(sep);
+    }
+  });
+}
+
+function renderExplorerTree(items, currentPath) {
+  if (!elements.explorerFileTree || !elements.explorerDocList) return;
+
+  elements.explorerFileTree.innerHTML = '';
+  elements.explorerDocList.innerHTML = '';
+
+  items.forEach(item => {
+    // Tree row
+    const row = document.createElement('div');
+    row.className = 'tree-file-row';
+    row.innerHTML = `
+      <div style="display:flex; align-items:center; gap:6px; overflow:hidden;">
+        <span>${item.isDir ? '📁' : '📄'}</span>
+        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(item.name)}</span>
+      </div>
+      <span style="font-size:10px; color:var(--text-muted);">${item.isDir ? 'DIR' : item.sizeFormatted}</span>
+    `;
+
+    row.addEventListener('click', () => {
+      if (item.isDir) {
+        browseExplorerPath(item.path);
+      } else {
+        openInspector({ fileName: item.name, filePath: item.path, fileSizeFormatted: item.sizeFormatted });
+      }
+    });
+
+    elements.explorerFileTree.appendChild(row);
+
+    // Main grid card
+    if (!item.isDir) {
+      const docCard = document.createElement('div');
+      docCard.className = 'doc-grid-card';
+      docCard.innerHTML = `
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+          <span class="dsa-badge-sm">${escapeHtml(item.ext.toUpperCase())}</span>
+          <span style="font-size:11px; color:var(--text-muted);">${escapeHtml(item.sizeFormatted)}</span>
+        </div>
+        <h4 style="font-size:14px; font-weight:700; color:var(--text-primary); margin-bottom:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(item.name)}</h4>
+        <div style="font-size:11px; color:var(--text-muted);">${escapeHtml(item.modified)}</div>
+      `;
+
+      docCard.addEventListener('click', () => {
+        openInspector({ fileName: item.name, filePath: item.path, fileSizeFormatted: item.sizeFormatted });
+      });
+
+      elements.explorerDocList.appendChild(docCard);
+    }
+  });
+}
+
+// --- INDEXING ACTIONS ---
+async function indexFolder(folderPath) {
+  if (!folderPath) return;
+  showToast(`⚡ Indexing ${getBasename(folderPath)} into Trie & Inverted Index...`);
+
+  try {
+    const res = await fetch(`${API_BASE}/api/fs/index`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: folderPath })
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Indexing failed');
+
+    state.activeCorpusPath = data.folderPath;
+    state.activeCorpusName = getBasename(data.folderPath) || 'Indexed Folder';
+
+    if (elements.currentCorpusName) {
+      elements.currentCorpusName.textContent = state.activeCorpusName;
+    }
+
+    showToast(`✓ Successfully indexed ${data.docCount} files (${data.wordCount} words)`);
+    await loadCorpusLocations();
+    await loadSystemStats();
+    executeSearch(elements.mainSearchInput ? elements.mainSearchInput.value.trim() : '');
+  } catch (err) {
+    showToast(`Error indexing: ${err.message}`);
+  }
+}
+
+// --- FILE INSPECTOR DRAWER ---
+async function openInspector(docMeta) {
+  state.selectedDoc = docMeta;
+
+  if (elements.drawerDocName) elements.drawerDocName.textContent = docMeta.fileName || '';
+  if (elements.drawerDocPath) elements.drawerDocPath.textContent = docMeta.filePath || '';
+  if (elements.drawerExtBadge) elements.drawerExtBadge.textContent = (getFileExtension(docMeta.fileName) || 'DOC').toUpperCase();
+  if (elements.drawerFileSize) elements.drawerFileSize.textContent = docMeta.fileSizeFormatted || '-';
+  if (elements.drawerWordCount) elements.drawerWordCount.textContent = docMeta.wordCount || '-';
+  if (elements.drawerRelevanceScore) elements.drawerRelevanceScore.textContent = docMeta.score || '0';
+
+  if (elements.drawerCodeTable) {
+    elements.drawerCodeTable.innerHTML = '<div style="padding:20px; color:var(--text-muted);">Reading file content from disk...</div>';
+  }
+
+  elements.inspectorDrawer.classList.remove('hidden');
+
+  try {
+    const res = await fetch(`${API_BASE}/api/document?path=${encodeURIComponent(docMeta.filePath)}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Cannot read document');
+
+    if (elements.drawerFileSize) elements.drawerFileSize.textContent = data.fileSizeFormatted || elements.drawerFileSize.textContent;
+    if (elements.drawerWordCount) elements.drawerWordCount.textContent = data.wordCount || elements.drawerWordCount.textContent;
 
     const lines = (data.content || '').split(/\r?\n/);
-    if (codeLinesTable) {
-      codeLinesTable.innerHTML = '';
+    if (elements.drawerCodeTable) {
+      elements.drawerCodeTable.innerHTML = '';
+      const tokens = (state.currentQuery || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
 
-      let firstMatchedEl = null;
-      const queryTokens = currentQuery.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+      let firstMatchEl = null;
 
       lines.forEach((line, idx) => {
         const lineNum = idx + 1;
         const lower = line.toLowerCase();
-        const isMatched = queryTokens.length > 0 && queryTokens.some(t => lower.includes(t));
+        const isMatched = tokens.length > 0 && tokens.some(t => lower.includes(t));
 
         const row = document.createElement('div');
         row.className = `code-row ${isMatched ? 'match-highlight' : ''}`;
         row.innerHTML = `
           <span class="code-num">${lineNum}</span>
-          <span class="code-text">${highlightKeyword(escapeHtml(line), currentQuery)}</span>
+          <span class="code-text">${highlightKeywords(escapeHtml(line), state.currentQuery)}</span>
         `;
 
-        if (isMatched && !firstMatchedEl) {
-          firstMatchedEl = row;
-        }
-
-        codeLinesTable.appendChild(row);
+        if (isMatched && !firstMatchEl) firstMatchEl = row;
+        elements.drawerCodeTable.appendChild(row);
       });
 
-      if (firstMatchedEl) {
-        setTimeout(() => {
-          firstMatchedEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }, 50);
+      if (firstMatchEl) {
+        setTimeout(() => firstMatchEl.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60);
       }
     }
   } catch (err) {
-    if (codeLinesTable) {
-      codeLinesTable.innerHTML = `<div style="padding:16px; color:#ef4444;">${escapeHtml(err.message)}</div>`;
+    if (elements.drawerCodeTable) {
+      elements.drawerCodeTable.innerHTML = `<div style="padding:20px; color:var(--accent-rose);">${escapeHtml(err.message)}</div>`;
     }
   }
 }
 
-// --- OS INTEGRATION (OPEN & REVEAL) ---
+function closeInspector() {
+  if (elements.inspectorDrawer) elements.inspectorDrawer.classList.add('hidden');
+  state.selectedDoc = null;
+}
 
+// --- OS INTEGRATION ---
 async function openSystemFile(filePath) {
   try {
     const res = await fetch(`${API_BASE}/api/open-file?path=${encodeURIComponent(filePath)}`);
     const data = await res.json();
     if (res.ok) {
-      showToast(`✓ Opened in default app: ${getBasename(filePath)}`);
+      showToast(`✓ Opened in default editor: ${getBasename(filePath)}`);
     } else {
-      showToast(data.error || 'Failed to open file', true);
+      showToast(data.error || 'Cannot open file');
     }
   } catch (err) {
-    showToast('Failed to open file: ' + err.message, true);
+    showToast('Failed to open file: ' + err.message);
   }
 }
 
-async function revealInExplorer(filePath) {
+async function revealFileInExplorer(filePath) {
   try {
     const res = await fetch(`${API_BASE}/api/reveal-folder?path=${encodeURIComponent(filePath)}`);
     const data = await res.json();
     if (res.ok) {
       showToast('✓ Opened in Windows File Explorer');
     } else {
-      showToast(data.error || 'Failed to open Explorer', true);
+      showToast(data.error || 'Cannot open Explorer');
     }
   } catch (err) {
-    showToast('Explorer error: ' + err.message, true);
-  }
-}
-
-// --- STATS & RECENT ---
-
-async function loadStats() {
-  try {
-    const res = await fetch(`${API_BASE}/api/stats`);
-    if (!res.ok) return;
-    const data = await res.json();
-
-    if (statDocCount) statDocCount.textContent = data.docCount || 0;
-    if (statWordCount) statWordCount.textContent = data.wordCount || 0;
-
-    // Load initial feed
-    if (searchInput && !searchInput.value.trim()) {
-      fetchAllIndexedDocs();
-    }
-  } catch (err) {
-    console.error('Stats error:', err);
-  }
-}
-
-async function loadRecent() {
-  try {
-    const res = await fetch(`${API_BASE}/api/recent`);
-    if (!res.ok) return;
-    const data = await res.json();
-    renderRecent(data.recent || []);
-  } catch (err) {
-    console.error('Recent error:', err);
-  }
-}
-
-function renderRecent(recent) {
-  if (!recentChips) return;
-  if (!recent || recent.length === 0) {
-    recentChips.innerHTML = '<span class="empty-hint">No recent searches</span>';
-    return;
-  }
-
-  recentChips.innerHTML = '';
-  recent.slice().reverse().forEach(q => {
-    const chip = document.createElement('span');
-    chip.className = 'recent-chip';
-    chip.textContent = q;
-    chip.addEventListener('click', () => {
-      if (searchInput) {
-        searchInput.value = q;
-        if (btnClearInput) btnClearInput.classList.remove('hidden');
-      }
-      executeSearch(q);
-    });
-    recentChips.appendChild(chip);
-  });
-}
-
-async function clearRecent() {
-  try {
-    await fetch(`${API_BASE}/api/clear`, { method: 'POST' });
-    loadRecent();
-    showToast('Cleared recent searches');
-  } catch (err) {
-    showToast('Failed to clear: ' + err.message, true);
+    showToast('Explorer error: ' + err.message);
   }
 }
 
 // --- UTILITIES ---
-
-function highlightKeyword(text, keyword) {
-  if (!text || !keyword) return text || '';
-  const tokens = keyword.split(/[^a-zA-Z0-9]+/).filter(Boolean);
+function highlightKeywords(text, query) {
+  if (!text || !query) return text || '';
+  const tokens = query.split(/[^a-zA-Z0-9]+/).filter(Boolean);
   if (tokens.length === 0) return text;
 
   const escaped = tokens.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
@@ -840,7 +1136,7 @@ function highlightKeyword(text, keyword) {
 
 function escapeHtml(str) {
   if (!str) return '';
-  return str
+  return String(str)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -850,8 +1146,8 @@ function escapeHtml(str) {
 
 function getBasename(path) {
   if (!path) return '';
-  const parts = path.split(/[\\/]/);
-  return parts[parts.length - 1];
+  const parts = path.split(/[\\/]/).filter(Boolean);
+  return parts[parts.length - 1] || '';
 }
 
 function getFileExtension(filename) {
@@ -863,14 +1159,13 @@ function getFileExtension(filename) {
   return '';
 }
 
-let toastTimer = null;
-function showToast(msg, isError = false) {
-  if (!appToast) return;
-  appToast.textContent = msg;
-  appToast.style.borderColor = isError ? '#ef4444' : 'var(--accent-blue)';
-  appToast.classList.remove('hidden');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
-    appToast.classList.add('hidden');
-  }, 2600);
+let toastTimeout = null;
+function showToast(msg) {
+  if (!elements.appToast) return;
+  elements.appToast.textContent = msg;
+  elements.appToast.classList.remove('hidden');
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => {
+    elements.appToast.classList.add('hidden');
+  }, 2800);
 }

@@ -54,7 +54,7 @@ public class RecentSearchQueue {
      *
      * @param query search query
      */
-    public void addSearch(String query) {
+    public synchronized void addSearch(String query) {
         if (query == null || query.isBlank()) {
             return;
         }
@@ -73,14 +73,14 @@ public class RecentSearchQueue {
     /**
      * Returns the recent searches in FIFO arrival order (oldest to newest).
      */
-    public List<String> getRecentSearches() {
+    public synchronized List<String> getRecentSearches() {
         return new ArrayList<>(queue);
     }
 
     /**
      * Displays the recent searches queue to the console.
      */
-    public void showRecentSearches() {
+    public synchronized void showRecentSearches() {
         if (queue.isEmpty()) {
             System.out.println("Recent searches queue is empty.");
             return;
@@ -97,15 +97,15 @@ public class RecentSearchQueue {
     /**
      * Clears all items in the queue.
      */
-    public void clear() {
+    public synchronized void clear() {
         queue.clear();
     }
 
-    public boolean isEmpty() {
+    public synchronized boolean isEmpty() {
         return queue.isEmpty();
     }
 
-    public int size() {
+    public synchronized int size() {
         return queue.size();
     }
 

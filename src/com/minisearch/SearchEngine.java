@@ -104,4 +104,8 @@ public class SearchEngine {
                 .getInvertedIndex()
                 .size();
     }
+
+    public Indexer getIndexer() {
+        return indexer;
+    }
 }

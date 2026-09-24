@@ -12,4 +12,12 @@ public class TrieNode {
         children = new HashMap<>();
         isEndOfWord = false;
     }
+
+    public Map<Character, TrieNode> getChildren() {
+        return children;
+    }
+
+    public boolean isEndOfWord() {
+        return isEndOfWord;
+    }
 }

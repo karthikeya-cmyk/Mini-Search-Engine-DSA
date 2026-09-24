@@ -36,18 +36,18 @@ public class Indexer {
         documents = new ArrayList<>();
     }
 
-    public void clear() {
+    public synchronized void clear() {
         invertedIndex.clear();
         trie.clear();
         documents.clear();
     }
 
-    public String getCurrentFolderPath() {
+    public synchronized String getCurrentFolderPath() {
         return currentFolderPath;
     }
 
     // Read all files from folderPath (recursive file walk)
-    public void indexDocuments(String folderPath) {
+    public synchronized void indexDocuments(String folderPath) {
         if (folderPath == null || folderPath.isBlank()) {
             folderPath = "documents";
         }
@@ -67,8 +67,9 @@ public class Indexer {
                 return;
             }
 
-            // If "documents" folder (e.g. for unit test), index non-recursively
-            if (folderPath.equals("documents")) {
+            // If "documents" folder (e.g. for unit test or demo corpus), index text files cleanly
+            boolean isDocsFolder = folder.getFileName() != null && folder.getFileName().toString().equalsIgnoreCase("documents");
+            if (isDocsFolder) {
                 try (DirectoryStream<Path> stream = Files.newDirectoryStream(folder, "*.txt")) {
                     for (Path path : stream) {
                         indexSinglePath(path);
@@ -195,15 +196,15 @@ public class Indexer {
         return "";
     }
 
-    public Map<String, List<Document>> getInvertedIndex() {
-        return invertedIndex;
+    public synchronized Map<String, List<Document>> getInvertedIndex() {
+        return new HashMap<>(invertedIndex);
     }
 
-    public Trie getTrie() {
+    public synchronized Trie getTrie() {
         return trie;
     }
 
-    public List<Document> getDocuments() {
-        return documents;
+    public synchronized List<Document> getDocuments() {
+        return new ArrayList<>(documents);
     }
 }
