@@ -24,7 +24,7 @@ public class Indexer {
 
     // Directories to skip during recursive traversal
     private static final Set<String> IGNORED_DIRECTORIES = new HashSet<>(Arrays.asList(
-            ".git", ".idea", "bin", "out", "target", "node_modules", ".gradle", "build", ".vscode",
+            "web", ".git", ".idea", "bin", "out", "target", "node_modules", ".gradle", "build", ".vscode",
             "AppData", "Program Files", "Program Files (x86)", "Windows", "$Recycle.Bin", "System Volume Information", ".cache"
     ));
 
@@ -86,6 +86,12 @@ public class Indexer {
                     if (IGNORED_DIRECTORIES.contains(dirName) || (dirName.startsWith(".") && !dirName.equals("."))) {
                         return FileVisitResult.SKIP_SUBTREE;
                     }
+
+                    // Index prominent subdirectories (like "DSA_2", "thesis_project") as storage folder items
+                    if (!dir.equals(folder) && dir.getNameCount() <= folder.getNameCount() + 2) {
+                        indexStorageDirectory(dir, attrs);
+                    }
+
                     return FileVisitResult.CONTINUE;
                 }
 
@@ -108,6 +114,30 @@ public class Indexer {
 
         } catch (IOException e) {
             System.out.println("Error indexing folder: " + e.getMessage());
+        }
+    }
+
+    private void indexStorageDirectory(Path dir, BasicFileAttributes attrs) {
+        String dirName = dir.getFileName().toString();
+        Document dirDoc = new Document(
+                dirName,
+                dir.toAbsolutePath().normalize().toString(),
+                dirName + " folder directory storage",
+                0,
+                attrs.lastModifiedTime().toMillis(),
+                true
+        );
+        documents.add(dirDoc);
+
+        // Insert folder name into Trie with file priority
+        trie.insert(dirName, 100, 1, true, "folder", dirName, dir.toString());
+
+        // Also insert token parts of the folder name into Trie (e.g. "DSA", "2" for "DSA_2")
+        String[] parts = dirName.split("[^a-zA-Z0-9]+");
+        for (String part : parts) {
+            if (part.length() >= 2) {
+                trie.insert(part, 80, 1, true, "folder", dirName, dir.toString());
+            }
         }
     }
 
@@ -146,10 +176,28 @@ public class Indexer {
                     path.toAbsolutePath().normalize().toString(),
                     content,
                     size,
-                    Files.getLastModifiedTime(path).toMillis()
+                    Files.getLastModifiedTime(path).toMillis(),
+                    false
             );
 
             documents.add(document);
+
+            // Register File Name & Sub-Tokens into Trie with TOP priority (Files in Storage)
+            trie.insert(fileName, 100, 1, true, "file", fileName, path.toString());
+
+            int dotIdx = fileName.lastIndexOf('.');
+            String baseName = dotIdx > 0 ? fileName.substring(0, dotIdx) : fileName;
+            if (!baseName.equalsIgnoreCase(fileName) && baseName.length() >= 2) {
+                trie.insert(baseName, 80, 1, true, "file", fileName, path.toString());
+            }
+
+            String[] nameParts = baseName.split("[^a-zA-Z0-9]+");
+            for (String part : nameParts) {
+                if (part.length() >= 2) {
+                    trie.insert(part, 50, 1, true, "file", fileName, path.toString());
+                }
+            }
+
             indexDocument(document);
 
         } catch (Exception ignored) {
@@ -161,27 +209,37 @@ public class Indexer {
                 .toLowerCase()
                 .split("[^a-z0-9]+");
 
-        Set<String> wordsInDocument = new HashSet<>();
+        // Count frequencies in this document, filtering out noise and random code tokens
+        Map<String, Integer> freqMap = new HashMap<>();
 
         for (String word : words) {
-            if (word.isEmpty()) {
+            // Keep meaningful words (length 2 to 30, no pure number noise unless 4-digit years)
+            if (word.length() < 2 || word.length() > 30) {
                 continue;
             }
-            trie.insert(word);
-            wordsInDocument.add(word);
+            if (word.matches("\\d+") && word.length() != 4) {
+                continue;
+            }
+            freqMap.put(word, freqMap.getOrDefault(word, 0) + 1);
         }
 
-        // Also add tokens from filename into Trie and inverted index
+        // Also add tokens from filename into frequency map with boost
         String[] nameWords = document.getFileName().toLowerCase().split("[^a-z0-9]+");
         for (String word : nameWords) {
-            if (!word.isEmpty()) {
-                trie.insert(word);
-                wordsInDocument.add(word);
+            if (word.length() >= 2 && word.length() <= 30) {
+                freqMap.put(word, freqMap.getOrDefault(word, 0) + 2);
             }
         }
 
-        // Build inverted index
-        for (String word : wordsInDocument) {
+        // Insert into Trie and inverted index
+        for (Map.Entry<String, Integer> entry : freqMap.entrySet()) {
+            String word = entry.getKey();
+            int freq = entry.getValue();
+
+            // Insert into Trie as a document keyword
+            trie.insert(word, freq, 1, false, "keyword", word, document.getFileName());
+
+            // Build inverted index
             invertedIndex
                     .computeIfAbsent(word, key -> new ArrayList<>())
                     .add(document);

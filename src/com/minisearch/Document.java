@@ -15,17 +15,23 @@ public class Document {
 
     // Stores how many times each word appears in this document
     private final Map<String, Integer> wordFrequency;
+    private final boolean isDirectory;
 
     public Document(String fileName, String content) {
-        this(fileName, fileName, content, content != null ? content.getBytes().length : 0, System.currentTimeMillis());
+        this(fileName, fileName, content, content != null ? content.getBytes().length : 0, System.currentTimeMillis(), false);
     }
 
     public Document(String fileName, String filePath, String content, long fileSize, long lastModified) {
+        this(fileName, filePath, content, fileSize, lastModified, false);
+    }
+
+    public Document(String fileName, String filePath, String content, long fileSize, long lastModified, boolean isDirectory) {
         this.fileName = fileName;
         this.filePath = filePath != null ? filePath : fileName;
         this.content = content != null ? content : "";
         this.fileSize = fileSize;
         this.lastModified = lastModified;
+        this.isDirectory = isDirectory;
 
         String[] words = this.content.toLowerCase()
                 .split("[^a-z0-9]+");
@@ -81,7 +87,14 @@ public class Document {
         return lastModified;
     }
 
+    public boolean isDirectory() {
+        return isDirectory;
+    }
+
     public String getExtension() {
+        if (isDirectory) {
+            return "folder";
+        }
         int dotIdx = fileName.lastIndexOf('.');
         if (dotIdx > 0 && dotIdx < fileName.length() - 1) {
             return fileName.substring(dotIdx + 1).toLowerCase();

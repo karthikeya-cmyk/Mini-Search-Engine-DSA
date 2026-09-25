@@ -48,21 +48,40 @@ public class SearchEngine {
             }
         }
 
-        // 2. Comprehensive Substring & Phrase Matching across all indexed documents
-        // Catches partial words, code identifiers, and filenames (e.g. "result" in "SearchResult", "book" in "book1.txt")
+        // 2. Comprehensive Filename Match & Content Word-Boundary Matching
         for (Document doc : allDocs) {
-            int score = countOccurrences(doc.getContent().toLowerCase(), rawLower);
+            String lowerFileName = doc.getFileName().toLowerCase();
+            String lowerFilePath = doc.getFilePath().toLowerCase();
+            int fileBonus = 0;
 
-            // Check filename matches (give filename matches bonus weight)
-            int nameMatches = countOccurrences(doc.getFileName().toLowerCase(), rawLower);
-            if (nameMatches > 0) {
-                score += nameMatches * 3;
+            // Filename / folder match boosts (storage items matching query)
+            if (lowerFileName.equals(rawLower)) {
+                fileBonus += 100;
+            } else if (lowerFileName.startsWith(rawLower)) {
+                fileBonus += 50;
+            } else if (lowerFileName.contains(rawLower)) {
+                fileBonus += 25;
+            } else if (lowerFilePath.contains(rawLower)) {
+                fileBonus += 10;
             }
 
-            if (score > 0) {
-                // Take maximum of inverted index score or substring score
-                int existing = docScoreMap.getOrDefault(doc, 0);
-                docScoreMap.put(doc, Math.max(existing, score));
+            int existingScore = docScoreMap.getOrDefault(doc, 0);
+            int calculatedScore = existingScore;
+
+            if (calculatedScore == 0) {
+                // If not found in inverted index tokens, check word prefixes or substrings
+                if (rawLower.length() <= 3) {
+                    // Short query (<= 3 chars): ONLY match at word boundaries (e.g. \bds\w*),
+                    // preventing false positives like "words" or "methods" matching "ds"
+                    calculatedScore = countWordPrefixMatches(doc.getContent().toLowerCase(), rawLower);
+                } else {
+                    calculatedScore = countOccurrences(doc.getContent().toLowerCase(), rawLower);
+                }
+            }
+
+            int finalScore = calculatedScore + fileBonus;
+            if (finalScore > 0) {
+                docScoreMap.put(doc, finalScore);
             }
         }
 
@@ -71,6 +90,21 @@ public class SearchEngine {
         }
 
         return results;
+    }
+
+    private int countWordPrefixMatches(String text, String prefix) {
+        if (text == null || prefix == null || prefix.isEmpty()) return 0;
+        int count = 0;
+        int len = text.length();
+        int subLen = prefix.length();
+
+        for (int i = 0; i <= len - subLen; i++) {
+            boolean isWordStart = (i == 0) || !Character.isLetterOrDigit(text.charAt(i - 1));
+            if (isWordStart && text.regionMatches(true, i, prefix, 0, subLen)) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private int countOccurrences(String text, String sub) {
@@ -89,6 +123,13 @@ public class SearchEngine {
         return indexer
                 .getTrie()
                 .autoComplete(prefix);
+    }
+
+    // Rich Auto-complete with storage items and keywords
+    public List<Trie.TrieSuggestion> autoCompleteDetails(String prefix) {
+        return indexer
+                .getTrie()
+                .autoCompleteDetails(prefix);
     }
 
     // Number of indexed documents

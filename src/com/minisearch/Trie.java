@@ -2,9 +2,11 @@ package com.minisearch;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class Trie {
 
@@ -35,24 +37,65 @@ public class Trie {
         return root;
     }
 
-    // Insert a word into the Trie
-    public void insert(String word) {
+    public static class TrieSuggestion {
+        private final String text;
+        private final String displayText;
+        private final String category; // "file", "folder", "keyword"
+        private final boolean isFileName;
+        private final int docCount;
+        private final int frequency;
+        private final String sampleDoc;
 
+        public TrieSuggestion(String text, String displayText, String category, boolean isFileName, int docCount, int frequency, String sampleDoc) {
+            this.text = text;
+            this.displayText = (displayText != null && !displayText.isEmpty()) ? displayText : text;
+            this.category = category != null ? category : (isFileName ? "file" : "keyword");
+            this.isFileName = isFileName;
+            this.docCount = docCount;
+            this.frequency = frequency;
+            this.sampleDoc = sampleDoc != null ? sampleDoc : "";
+        }
+
+        public String getText() { return text; }
+        public String getDisplayText() { return displayText; }
+        public String getCategory() { return category; }
+        public boolean isFileName() { return isFileName; }
+        public int getDocCount() { return docCount; }
+        public int getFrequency() { return frequency; }
+        public String getSampleDoc() { return sampleDoc; }
+    }
+
+    private static class TrieCandidate {
+        final String word;
+        final TrieNode node;
+
+        TrieCandidate(String word, TrieNode node) {
+            this.word = word;
+            this.node = node;
+        }
+    }
+
+    // Insert a word into the Trie (standard backward-compatible method)
+    public void insert(String word) {
+        insert(word, 1, 1, false, "keyword", word, "");
+    }
+
+    // Insert with rich storage / document metadata
+    public void insert(String word, int freq, int docCount, boolean isFileName, String category, String displayWord, String sampleDoc) {
         if (word == null || word.isEmpty()) {
             return;
         }
 
-        word = word.toLowerCase();
+        String lowerWord = word.toLowerCase().trim();
+        if (lowerWord.isEmpty()) return;
 
         TrieNode current = root;
 
-        for (char ch : word.toCharArray()) {
-
+        for (char ch : lowerWord.toCharArray()) {
             if (!current.children.containsKey(ch)) {
                 current.children.put(ch, new TrieNode());
                 nodeCount++;
             }
-
             current = current.children.get(ch);
         }
 
@@ -60,80 +103,155 @@ public class Trie {
             current.isEndOfWord = true;
             wordCount++;
         }
+
+        current.frequency += Math.max(1, freq);
+        current.docCount = Math.max(current.docCount, docCount);
+        if (isFileName) {
+            current.isFileName = true;
+            current.category = category != null ? category : "file";
+        }
+        if (displayWord != null && !displayWord.isEmpty()) {
+            if (current.displayWord == null || current.displayWord.isEmpty() || isFileName) {
+                current.displayWord = displayWord;
+            }
+        }
+        if (sampleDoc != null && !sampleDoc.isEmpty()) {
+            current.sampleDoc = sampleDoc;
+        }
     }
 
     // Check whether an exact word exists
     public boolean search(String word) {
-
         if (word == null || word.isEmpty()) {
             return false;
         }
-
         TrieNode node = findNode(word.toLowerCase());
-
         return node != null && node.isEndOfWord;
     }
 
     // Check whether a prefix exists
     public boolean startsWith(String prefix) {
-
         if (prefix == null || prefix.isEmpty()) {
             return false;
         }
-
         return findNode(prefix.toLowerCase()) != null;
     }
 
-    // Get all words beginning with a prefix
+    // Get all words beginning with a prefix (ranked by storage file priority and frequency)
     public List<String> autoComplete(String prefix) {
-
+        List<TrieSuggestion> details = autoCompleteDetails(prefix);
         List<String> results = new ArrayList<>();
+        for (TrieSuggestion ts : details) {
+            results.add(ts.getDisplayText());
+        }
+        return results;
+    }
+
+    // Rich autocomplete returning categorized, ranked suggestions
+    public List<TrieSuggestion> autoCompleteDetails(String prefix) {
+        List<TrieSuggestion> results = new ArrayList<>();
 
         if (prefix == null || prefix.isEmpty()) {
             return results;
         }
 
-        prefix = prefix.toLowerCase();
-
-        TrieNode node = findNode(prefix);
+        String lowerPrefix = prefix.toLowerCase().trim();
+        TrieNode node = findNode(lowerPrefix);
 
         if (node == null) {
             return results;
         }
 
-        collectWords(node, prefix, results);
+        List<TrieCandidate> candidates = new ArrayList<>();
+        collectCandidates(node, lowerPrefix, candidates);
+
+        // Intelligently rank candidates:
+        // 1. Files / Folders in storage come FIRST (what is in storage is prioritized!)
+        // 2. Exact match to prefix
+        // 3. Higher docCount (keywords that appear across multiple files)
+        // 4. Higher frequency
+        // 5. Closer in length to prefix
+        // 6. Alphabetical
+        candidates.sort((a, b) -> {
+            boolean aIsFile = a.node.isFileName();
+            boolean bIsFile = b.node.isFileName();
+            if (aIsFile != bIsFile) {
+                return aIsFile ? -1 : 1;
+            }
+
+            boolean aExact = a.word.equalsIgnoreCase(lowerPrefix);
+            boolean bExact = b.word.equalsIgnoreCase(lowerPrefix);
+            if (aExact != bExact) {
+                return aExact ? -1 : 1;
+            }
+
+            if (a.node.getDocCount() != b.node.getDocCount()) {
+                return Integer.compare(b.node.getDocCount(), a.node.getDocCount());
+            }
+
+            if (a.node.getFrequency() != b.node.getFrequency()) {
+                return Integer.compare(b.node.getFrequency(), a.node.getFrequency());
+            }
+
+            if (a.word.length() != b.word.length()) {
+                return Integer.compare(a.word.length(), b.word.length());
+            }
+
+            return a.word.compareToIgnoreCase(b.word);
+        });
+
+        // Limit to top 10 most relevant suggestions
+        int limit = Math.min(candidates.size(), 10);
+        Set<String> seen = new HashSet<>();
+
+        for (int i = 0; i < candidates.size() && results.size() < limit; i++) {
+            TrieCandidate tc = candidates.get(i);
+            String display = tc.node.getDisplayWord();
+            if (display.isEmpty()) {
+                display = tc.word;
+            }
+
+            // Deduplicate case-insensitively
+            if (seen.add(display.toLowerCase())) {
+                results.add(new TrieSuggestion(
+                        tc.word,
+                        display,
+                        tc.node.getCategory(),
+                        tc.node.isFileName(),
+                        tc.node.getDocCount(),
+                        tc.node.getFrequency(),
+                        tc.node.getSampleDoc()
+                ));
+            }
+        }
 
         return results;
     }
 
     private TrieNode findNode(String word) {
-
         TrieNode current = root;
 
         for (char ch : word.toCharArray()) {
-
             if (!current.children.containsKey(ch)) {
                 return null;
             }
-
             current = current.children.get(ch);
         }
 
         return current;
     }
 
-    private void collectWords(
+    private void collectCandidates(
             TrieNode node,
             String currentWord,
-            List<String> results) {
+            List<TrieCandidate> results) {
 
         if (node.isEndOfWord) {
-            results.add(currentWord);
+            results.add(new TrieCandidate(currentWord, node));
         }
 
         for (char ch : node.children.keySet()) {
-
-            collectWords(
+            collectCandidates(
                     node.children.get(ch),
                     currentWord + ch,
                     results

@@ -382,6 +382,7 @@ public class WebServer {
                 json.append("\"fileName\":").append(quote(doc.getFileName())).append(",");
                 json.append("\"filePath\":").append(quote(doc.getFilePath())).append(",");
                 json.append("\"extension\":").append(quote(doc.getExtension())).append(",");
+                json.append("\"isDirectory\":").append(doc.isDirectory()).append(",");
                 json.append("\"score\":").append(r.getScore()).append(",");
                 json.append("\"wordCount\":").append(doc.getWordCount()).append(",");
                 json.append("\"fileSizeFormatted\":").append(quote(formatBytes(doc.getFileSize()))).append(",");
@@ -418,9 +419,10 @@ public class WebServer {
             Map<String, String> params = parseQueryParams(exchange.getRequestURI().getRawQuery());
             String prefix = params.getOrDefault("q", "").trim().toLowerCase();
 
-            List<String> suggestions = searchEngine.autoComplete(prefix);
-            if (suggestions.size() > 10) {
-                suggestions = suggestions.subList(0, 10);
+            List<Trie.TrieSuggestion> details = searchEngine.autoCompleteDetails(prefix);
+            List<String> suggestions = new ArrayList<>();
+            for (Trie.TrieSuggestion item : details) {
+                suggestions.add(item.getDisplayText());
             }
 
             StringBuilder json = new StringBuilder();
@@ -430,6 +432,21 @@ public class WebServer {
             for (int i = 0; i < suggestions.size(); i++) {
                 if (i > 0) json.append(",");
                 json.append(quote(suggestions.get(i)));
+            }
+            json.append("],");
+            json.append("\"items\":[");
+            for (int i = 0; i < details.size(); i++) {
+                if (i > 0) json.append(",");
+                Trie.TrieSuggestion item = details.get(i);
+                json.append("{");
+                json.append("\"text\":").append(quote(item.getText())).append(",");
+                json.append("\"displayText\":").append(quote(item.getDisplayText())).append(",");
+                json.append("\"category\":").append(quote(item.getCategory())).append(",");
+                json.append("\"isFileName\":").append(item.isFileName()).append(",");
+                json.append("\"docCount\":").append(item.getDocCount()).append(",");
+                json.append("\"frequency\":").append(item.getFrequency()).append(",");
+                json.append("\"sampleDoc\":").append(quote(item.getSampleDoc()));
+                json.append("}");
             }
             json.append("]}");
 

@@ -94,9 +94,7 @@ public class RecentSearchQueue {
         System.out.println("---------------------------------------------------------");
     }
 
-    /**
-     * Clears all items in the queue.
-     */
+    
     public synchronized void clear() {
         queue.clear();
     }

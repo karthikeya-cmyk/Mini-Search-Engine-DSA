@@ -9,7 +9,6 @@ const API_BASE = window.location.origin;
 // Application State
 const state = {
   currentTab: 'search',
-  currentDsaSubtab: 'heap',
   activeCorpusPath: '',
   activeCorpusName: '',
   searchResults: [],
@@ -27,8 +26,6 @@ const elements = {
   // Navigation
   navTabs: document.querySelectorAll('.nav-tab'),
   tabPanels: document.querySelectorAll('.tab-panel'),
-  dsaSubtabs: document.querySelectorAll('.dsa-subtab'),
-  dsaPanes: document.querySelectorAll('.dsa-pane'),
   btnBrandHome: document.getElementById('btn-brand-home'),
   btnThemeToggle: document.getElementById('btn-theme-toggle'),
 
@@ -55,34 +52,6 @@ const elements = {
   teleHeapTime: document.getElementById('tele-heap-time'),
   teleMatchCount: document.getElementById('tele-match-count'),
   resultsContainer: document.getElementById('results-container'),
-
-  // DSA Studio: Max-Heap
-  heapQueryInput: document.getElementById('heap-query-input'),
-  btnRunHeapSim: document.getElementById('btn-run-heap-sim'),
-  heapExtractionList: document.getElementById('heap-extraction-list'),
-
-  // DSA Studio: Trie
-  triePrefixInput: document.getElementById('trie-prefix-input'),
-  btnRefreshTrie: document.getElementById('btn-refresh-trie'),
-  trieTotalNodes: document.getElementById('trie-total-nodes'),
-  trieTotalWords: document.getElementById('trie-total-words'),
-  trieTreeCanvas: document.getElementById('trie-tree-canvas'),
-
-  // DSA Studio: Inverted Index
-  invertedFilterInput: document.getElementById('inverted-filter-input'),
-  invertedMatchCount: document.getElementById('inverted-match-count'),
-  invertedIndexTbody: document.getElementById('inverted-index-tbody'),
-
-  // DSA Studio: Stack & Queue
-  btnClearStackHistory: document.getElementById('btn-clear-stack-history'),
-  stackGraphicWrap: document.getElementById('stack-graphic-wrap'),
-  queueSlotsRow: document.getElementById('queue-slots-row'),
-
-  // DSA Studio: Profiler
-  profTotalSearches: document.getElementById('prof-total-searches'),
-  profLastSearchTime: document.getElementById('prof-last-search-time'),
-  profAvgSearchTime: document.getElementById('prof-avg-search-time'),
-  profIndexedDocs: document.getElementById('prof-indexed-docs'),
 
   // Explorer
   explorerLocationsList: document.getElementById('explorer-locations-list'),
@@ -128,13 +97,6 @@ function setupNavigation() {
     });
   });
 
-  elements.dsaSubtabs.forEach(subtab => {
-    subtab.addEventListener('click', () => {
-      const target = subtab.getAttribute('data-subtab');
-      switchDsaSubtab(target);
-    });
-  });
-
   if (elements.btnBrandHome) {
     elements.btnBrandHome.addEventListener('click', () => switchMainTab('search'));
   }
@@ -145,18 +107,9 @@ function switchMainTab(tabName) {
   elements.navTabs.forEach(t => t.classList.toggle('active', t.getAttribute('data-tab') === tabName));
   elements.tabPanels.forEach(p => p.classList.toggle('active', p.id === `panel-${tabName}`));
 
-  if (tabName === 'dsa') {
-    loadDsaSubtabData(state.currentDsaSubtab);
-  } else if (tabName === 'explorer') {
+  if (tabName === 'explorer') {
     browseExplorerPath(state.activeCorpusPath);
   }
-}
-
-function switchDsaSubtab(subtabName) {
-  state.currentDsaSubtab = subtabName;
-  elements.dsaSubtabs.forEach(s => s.classList.toggle('active', s.getAttribute('data-subtab') === subtabName));
-  elements.dsaPanes.forEach(p => p.classList.toggle('active', p.id === `subpane-${subtabName}`));
-  loadDsaSubtabData(subtabName);
 }
 
 // --- EVENT LISTENERS ---
@@ -292,39 +245,6 @@ function setupEventListeners() {
     });
   }
 
-  // DSA Interactive Controls
-  if (elements.btnRunHeapSim) {
-    elements.btnRunHeapSim.addEventListener('click', () => {
-      const q = elements.heapQueryInput.value.trim() || 'java';
-      simulateMaxHeap(q);
-    });
-  }
-
-  if (elements.btnRefreshTrie) {
-    elements.btnRefreshTrie.addEventListener('click', () => {
-      const prefix = elements.triePrefixInput.value.trim();
-      loadTrieVisualizer(prefix);
-    });
-  }
-
-  if (elements.triePrefixInput) {
-    elements.triePrefixInput.addEventListener('input', (e) => {
-      clearTimeout(state.debounceTimers.trie);
-      state.debounceTimers.trie = setTimeout(() => loadTrieVisualizer(e.target.value.trim()), 150);
-    });
-  }
-
-  if (elements.invertedFilterInput) {
-    elements.invertedFilterInput.addEventListener('input', (e) => {
-      clearTimeout(state.debounceTimers.inverted);
-      state.debounceTimers.inverted = setTimeout(() => loadInvertedIndex(e.target.value.trim()), 120);
-    });
-  }
-
-  if (elements.btnClearStackHistory) {
-    elements.btnClearStackHistory.addEventListener('click', clearHistoryAndQueue);
-  }
-
   // Explorer Actions
   if (elements.btnIndexThisFolder) {
     elements.btnIndexThisFolder.addEventListener('click', () => {
@@ -414,10 +334,6 @@ async function loadSystemStats() {
 
     if (elements.headerStatDocs) elements.headerStatDocs.textContent = data.docCount || 0;
     if (elements.headerStatWords) elements.headerStatWords.textContent = (data.wordCount || 0).toLocaleString();
-    if (elements.profIndexedDocs) elements.profIndexedDocs.textContent = data.docCount || 0;
-    if (elements.profTotalSearches) elements.profTotalSearches.textContent = data.totalSearches || 0;
-    if (elements.profLastSearchTime) elements.profLastSearchTime.textContent = `${data.lastSearchTimeMs || '0.000'} ms`;
-    if (elements.profAvgSearchTime) elements.profAvgSearchTime.textContent = `${data.avgSearchTimeMs || '0.000'} ms`;
   } catch (err) {
     console.error('Stats error:', err);
   }
@@ -602,41 +518,73 @@ async function fetchTrieAutocomplete(prefix) {
     const res = await fetch(`${API_BASE}/api/autocomplete?q=${encodeURIComponent(prefix)}`);
     if (!res.ok) return;
     const data = await res.json();
-    renderTrieAutocomplete(prefix, data.suggestions || []);
+    renderTrieAutocomplete(prefix, data.items || data.suggestions || []);
   } catch (err) {
     console.error('Trie autocomplete error:', err);
   }
 }
 
-function renderTrieAutocomplete(prefix, suggestions) {
-  state.trieSuggestions = suggestions;
+function renderTrieAutocomplete(prefix, rawItems) {
+  const items = (rawItems || []).map(it => {
+    if (typeof it === 'string') {
+      return { text: it, displayText: it, category: 'keyword', isFileName: false, docCount: 1, frequency: 1 };
+    }
+    return it;
+  });
+
+  state.trieSuggestions = items.map(it => it.displayText || it.text);
   state.autoHighlightIdx = -1;
 
   if (!elements.trieAutocompleteBox || !elements.autocompleteItemsList) return;
 
-  if (suggestions.length === 0) {
+  if (items.length === 0) {
     hideAutocomplete();
     return;
   }
 
   elements.autocompleteItemsList.innerHTML = '';
-  suggestions.forEach((word, idx) => {
+  items.forEach((item, idx) => {
     const li = document.createElement('li');
     li.className = 'auto-item';
 
+    const word = item.displayText || item.text;
     const lowerWord = word.toLowerCase();
     const lowerPrefix = prefix.toLowerCase();
-    let display = word;
+    let display = escapeHtml(word);
 
-    if (lowerWord.startsWith(lowerPrefix)) {
-      display = `<span class="auto-bold">${escapeHtml(word.substring(0, prefix.length))}</span>${escapeHtml(word.substring(prefix.length))}`;
-    } else {
-      display = escapeHtml(word);
+    const matchIdx = lowerWord.indexOf(lowerPrefix);
+    if (matchIdx >= 0) {
+      const before = escapeHtml(word.substring(0, matchIdx));
+      const matched = escapeHtml(word.substring(matchIdx, matchIdx + prefix.length));
+      const after = escapeHtml(word.substring(matchIdx + prefix.length));
+      display = `${before}<span class="auto-bold">${matched}</span>${after}`;
+    }
+
+    let icon = '🔍';
+    let badgeText = `${item.docCount || 1} doc`;
+    let badgeClass = 'badge-keyword';
+
+    if (item.category === 'folder') {
+      icon = '📁';
+      badgeText = 'Storage Folder';
+      badgeClass = 'badge-folder';
+    } else if (item.isFileName || item.category === 'file') {
+      icon = '📄';
+      badgeText = 'Storage File';
+      badgeClass = 'badge-file';
+    } else if (item.docCount > 1) {
+      badgeText = `${item.docCount} docs`;
     }
 
     li.innerHTML = `
-      <span>${display}</span>
-      <span style="font-family:var(--font-mono); font-size:10px; color:var(--text-muted);">↵ select</span>
+      <div style="display:flex; align-items:center; gap:8px; overflow:hidden;">
+        <span style="font-size:14px; flex-shrink:0;">${icon}</span>
+        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:500;">${display}</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+        <span class="dsa-badge-sm ${badgeClass}">${escapeHtml(badgeText)}</span>
+        <span style="font-family:var(--font-mono); font-size:10px; color:var(--text-muted);">↵ select</span>
+      </div>
     `;
 
     li.addEventListener('click', () => {
@@ -686,215 +634,6 @@ function handleOmnibarKeydown(e) {
     }
   } else if (e.key === 'Escape') {
     hideAutocomplete();
-  }
-}
-
-// --- DSA STUDIO SUBTAB LOADERS ---
-async function loadDsaSubtabData(subtab) {
-  if (subtab === 'heap') {
-    simulateMaxHeap(state.currentQuery || 'java');
-  } else if (subtab === 'trie') {
-    loadTrieVisualizer('');
-  } else if (subtab === 'inverted') {
-    loadInvertedIndex('');
-  } else if (subtab === 'stack' || subtab === 'queue' || subtab === 'profiler') {
-    loadDsaOverview();
-  }
-}
-
-// 1. Max-Heap Simulation
-async function simulateMaxHeap(query) {
-  if (!elements.heapExtractionList) return;
-  elements.heapExtractionList.innerHTML = '<div class="dsa-placeholder-text">Executing Binary Max-Heap extraction...</div>';
-
-  try {
-    const res = await fetch(`${API_BASE}/api/dsa/heap?q=${encodeURIComponent(query)}`);
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Heap simulation failed');
-
-    if (!data.extractionSteps || data.extractionSteps.length === 0) {
-      elements.heapExtractionList.innerHTML = `<div class="dsa-placeholder-text">No documents matched query "${escapeHtml(query)}" to insert into Max-Heap.</div>`;
-      return;
-    }
-
-    elements.heapExtractionList.innerHTML = '';
-    data.extractionSteps.forEach(step => {
-      const div = document.createElement('div');
-      div.className = 'heap-step-item';
-      div.innerHTML = `
-        <div style="display:flex; align-items:center; gap:10px;">
-          <span class="heap-step-badge">Step ${step.step}</span>
-          <strong style="color:var(--text-primary);">${escapeHtml(step.fileName)}</strong>
-        </div>
-        <div style="display:flex; align-items:center; gap:12px;">
-          <span style="color:var(--accent-cyan); font-family:var(--font-mono); font-weight:700;">Score: ${step.score}</span>
-          <span style="font-size:11px; color:var(--text-muted);">${escapeHtml(step.note)}</span>
-        </div>
-      `;
-      elements.heapExtractionList.appendChild(div);
-    });
-  } catch (err) {
-    elements.heapExtractionList.innerHTML = `<div class="dsa-placeholder-text" style="color:var(--accent-rose);">${escapeHtml(err.message)}</div>`;
-  }
-}
-
-// 2. Trie Interactive Visualizer
-async function loadTrieVisualizer(prefix) {
-  if (!elements.trieTreeCanvas) return;
-  elements.trieTreeCanvas.innerHTML = '<div class="dsa-placeholder-text">Traversing Trie prefix branches...</div>';
-
-  try {
-    const res = await fetch(`${API_BASE}/api/dsa/trie?prefix=${encodeURIComponent(prefix)}&depth=3`);
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Trie error');
-
-    if (elements.trieTotalNodes) elements.trieTotalNodes.textContent = (data.nodeCount || 0).toLocaleString();
-    if (elements.trieTotalWords) elements.trieTotalWords.textContent = (data.wordCount || 0).toLocaleString();
-
-    elements.trieTreeCanvas.innerHTML = '';
-    const rootEl = renderTrieNode(data.tree);
-    elements.trieTreeCanvas.appendChild(rootEl);
-  } catch (err) {
-    elements.trieTreeCanvas.innerHTML = `<div class="dsa-placeholder-text" style="color:var(--accent-rose);">${escapeHtml(err.message)}</div>`;
-  }
-}
-
-function renderTrieNode(node) {
-  const wrap = document.createElement('div');
-  wrap.className = 'trie-node-wrapper';
-
-  const bubble = document.createElement('div');
-  bubble.className = `trie-node-bubble ${node.isEnd ? 'is-end' : ''}`;
-  bubble.textContent = node.name || 'ROOT';
-  bubble.title = `Prefix: "${node.prefix || ''}" | IsEndOfWord: ${node.isEnd}`;
-
-  wrap.appendChild(bubble);
-
-  if (node.children && node.children.length > 0) {
-    const childrenContainer = document.createElement('div');
-    childrenContainer.className = 'trie-children-container';
-    node.children.forEach(child => {
-      childrenContainer.appendChild(renderTrieNode(child));
-    });
-    wrap.appendChild(childrenContainer);
-  }
-
-  return wrap;
-}
-
-// 3. Inverted Index Explorer
-async function loadInvertedIndex(filter) {
-  if (!elements.invertedIndexTbody) return;
-
-  try {
-    const res = await fetch(`${API_BASE}/api/dsa/inverted-index?q=${encodeURIComponent(filter)}&limit=80`);
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Inverted index error');
-
-    if (elements.invertedMatchCount) {
-      elements.invertedMatchCount.textContent = `${data.matchedTermsCount || 0} unique words in index`;
-    }
-
-    elements.invertedIndexTbody.innerHTML = '';
-
-    (data.terms || []).forEach(termItem => {
-      const tr = document.createElement('tr');
-
-      const postingsHtml = (termItem.postings || []).map(p => `
-        <span class="posting-chip">
-          📄 ${escapeHtml(p.fileName)} (<span class="posting-freq">${p.frequency}</span>)
-        </span>
-      `).join('');
-
-      tr.innerHTML = `
-        <td><strong style="color:var(--accent-cyan); font-family:var(--font-mono);">${escapeHtml(termItem.term)}</strong></td>
-        <td><span class="dsa-badge-sm">${termItem.docCount} docs</span></td>
-        <td>${postingsHtml}</td>
-      `;
-
-      elements.invertedIndexTbody.appendChild(tr);
-    });
-  } catch (err) {
-    console.error('Inverted index error:', err);
-  }
-}
-
-// 4. DSA Overview (Stack, Queue, Profiler)
-async function loadDsaOverview() {
-  try {
-    const res = await fetch(`${API_BASE}/api/dsa/overview`);
-    const data = await res.json();
-    if (!res.ok) return;
-
-    // Render Stack (LIFO)
-    if (elements.stackGraphicWrap) {
-      elements.stackGraphicWrap.innerHTML = '';
-      const stackItems = (data.stack && data.stack.items) || [];
-      if (stackItems.length === 0) {
-        elements.stackGraphicWrap.innerHTML = '<div class="dsa-placeholder-text">History stack is empty. Run a search to push onto stack.</div>';
-      } else {
-        stackItems.forEach((q, idx) => {
-          const isTop = idx === 0;
-          const slot = document.createElement('div');
-          slot.className = `stack-slot ${isTop ? 'top-of-stack' : ''}`;
-          slot.innerHTML = `
-            <span>🔍 ${escapeHtml(q)}</span>
-            ${isTop ? '<span class="top-indicator">TOP (LIFO)</span>' : `<span style="font-size:10px; color:var(--text-muted);">Slot #${stackItems.length - idx}</span>`}
-          `;
-          elements.stackGraphicWrap.appendChild(slot);
-        });
-      }
-    }
-
-    // Render Queue (FIFO)
-    if (elements.queueSlotsRow) {
-      elements.queueSlotsRow.innerHTML = '';
-      const queueItems = (data.queue && data.queue.items) || [];
-      const cap = (data.queue && data.queue.capacity) || 5;
-
-      for (let i = 0; i < cap; i++) {
-        const slotCard = document.createElement('div');
-        const hasItem = i < queueItems.length;
-        slotCard.className = `queue-slot-card ${hasItem ? 'occupied' : ''}`;
-
-        if (hasItem) {
-          const isHead = i === 0;
-          const isTail = i === queueItems.length - 1;
-          slotCard.innerHTML = `
-            ${isHead ? '<span class="queue-head-tag">HEAD (EVICT)</span>' : ''}
-            ${isTail ? '<span class="queue-tail-tag">TAIL (NEW)</span>' : ''}
-            <div style="font-size:12.5px; font-weight:700; color:var(--text-primary); margin-top:4px;">${escapeHtml(queueItems[i])}</div>
-            <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">Slot [${i}]</div>
-          `;
-        } else {
-          slotCard.innerHTML = `
-            <div style="font-size:11px; color:var(--text-muted);">Empty Slot</div>
-            <div style="font-size:9.5px; color:var(--border-medium); margin-top:2px;">Slot [${i}]</div>
-          `;
-        }
-
-        elements.queueSlotsRow.appendChild(slotCard);
-      }
-    }
-
-    // Profiler metrics
-    if (data.telemetry) {
-      if (elements.profTotalSearches) elements.profTotalSearches.textContent = data.telemetry.totalSearches || 0;
-      if (elements.profLastSearchTime) elements.profLastSearchTime.textContent = `${data.telemetry.lastSearchTimeMs || '0.000'} ms`;
-      if (elements.profAvgSearchTime) elements.profAvgSearchTime.textContent = `${data.telemetry.avgSearchTimeMs || '0.000'} ms`;
-    }
-  } catch (err) {
-    console.error('DSA overview error:', err);
-  }
-}
-
-async function clearHistoryAndQueue() {
-  try {
-    await fetch(`${API_BASE}/api/clear`, { method: 'POST' });
-    showToast('✓ Search history stack & recent queue cleared');
-    loadDsaOverview();
-  } catch (err) {
-    showToast('Failed to clear history: ' + err.message);
   }
 }
 
