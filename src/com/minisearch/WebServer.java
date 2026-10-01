@@ -459,76 +459,186 @@ public class WebServer {
 
     // --- OS FILE ACTIONS (OPEN & REVEAL IN EXPLORER) ---
 
-    private class OpenFileHandler implements HttpHandler {
-        @Override
-        public void handle(HttpExchange exchange) throws IOException {
-            if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
-                sendCors(exchange);
-                return;
+private class OpenFileHandler implements HttpHandler {
+
+    @Override
+    public void handle(HttpExchange exchange) throws IOException {
+
+        if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
+            sendCors(exchange);
+            return;
+        }
+
+        Map<String, String> params =
+                parseQueryParams(exchange.getRequestURI().getRawQuery());
+
+        String filePath =
+                params.getOrDefault("path", "").trim();
+
+        if (filePath.isEmpty()) {
+            sendJson(
+                    exchange,
+                    "{\"error\":\"Missing 'path' parameter\"}",
+                    400
+            );
+            return;
+        }
+
+        File file = new File(filePath);
+
+        if (!file.exists()) {
+            sendJson(
+                    exchange,
+                    "{\"error\":" +
+                            quote("File does not exist on server: " + filePath) +
+                            "}",
+                    404
+            );
+            return;
+        }
+
+        // Opening files is only possible when the server
+        // is running on the user's own computer.
+        String os = System.getProperty("os.name").toLowerCase();
+
+        if (!os.contains("win")) {
+            sendJson(
+                    exchange,
+                    "{\"error\":" +
+                            quote("File opening is available when running the server locally on Windows.") +
+                            "}",
+                    400
+            );
+            return;
+        }
+
+        try {
+
+            if (Desktop.isDesktopSupported()
+                    && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
+
+                Desktop.getDesktop().open(file);
+
+                sendJson(
+                        exchange,
+                        "{\"success\":true,\"message\":" +
+                                quote("Opened " + file.getName()) +
+                                "}",
+                        200
+                );
+
+            } else {
+
+                new ProcessBuilder(
+                        "cmd",
+                        "/c",
+                        "start",
+                        "",
+                        file.getAbsolutePath()
+                ).start();
+
+                sendJson(
+                        exchange,
+                        "{\"success\":true,\"message\":" +
+                                quote("Opened " + file.getName()) +
+                                "}",
+                        200
+                );
             }
 
-            Map<String, String> params = parseQueryParams(exchange.getRequestURI().getRawQuery());
-            String filePath = params.getOrDefault("path", "").trim();
+        } catch (Exception e) {
 
-            if (filePath.isEmpty()) {
-                sendJson(exchange, "{\"error\":\"Missing 'path' parameter\"}", 400);
-                return;
-            }
-
-            File file = new File(filePath);
-            if (!file.exists()) {
-                sendJson(exchange, "{\"error\":\"File does not exist on disk: " + quote(filePath) + "\"}", 404);
-                return;
-            }
-
-            try {
-                if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
-                    Desktop.getDesktop().open(file);
-                } else {
-                    new ProcessBuilder("cmd", "/c", "start", "", file.getAbsolutePath()).start();
-                }
-                sendJson(exchange, "{\"success\":true,\"message\":\"Opened " + quote(file.getName()) + "\"}", 200);
-            } catch (Exception e) {
-                try {
-                    new ProcessBuilder("cmd", "/c", "start", "", file.getAbsolutePath()).start();
-                    sendJson(exchange, "{\"success\":true,\"message\":\"Opened via system shell\"}", 200);
-                } catch (Exception ex) {
-                    sendJson(exchange, "{\"error\":\"Failed to open file: " + quote(ex.getMessage()) + "\"}", 500);
-                }
-            }
+            sendJson(
+                    exchange,
+                    "{\"error\":" +
+                            quote("Unable to open file: " + e.getMessage()) +
+                            "}",
+                    500
+            );
         }
     }
+}
 
-    private class RevealFolderHandler implements HttpHandler {
-        @Override
-        public void handle(HttpExchange exchange) throws IOException {
-            if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
-                sendCors(exchange);
-                return;
-            }
 
-            Map<String, String> params = parseQueryParams(exchange.getRequestURI().getRawQuery());
-            String filePath = params.getOrDefault("path", "").trim();
+private class RevealFolderHandler implements HttpHandler {
 
-            if (filePath.isEmpty()) {
-                sendJson(exchange, "{\"error\":\"Missing 'path' parameter\"}", 400);
-                return;
-            }
+    @Override
+    public void handle(HttpExchange exchange) throws IOException {
 
-            File file = new File(filePath);
-            if (!file.exists()) {
-                sendJson(exchange, "{\"error\":\"File not found: " + quote(filePath) + "\"}", 404);
-                return;
-            }
+        if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
+            sendCors(exchange);
+            return;
+        }
 
-            try {
-                new ProcessBuilder("explorer.exe", "/select,", file.getAbsolutePath()).start();
-                sendJson(exchange, "{\"success\":true,\"message\":\"Revealed in File Explorer\"}", 200);
-            } catch (Exception e) {
-                sendJson(exchange, "{\"error\":\"Failed to open File Explorer: " + quote(e.getMessage()) + "\"}", 500);
-            }
+        Map<String, String> params =
+                parseQueryParams(exchange.getRequestURI().getRawQuery());
+
+        String filePath =
+                params.getOrDefault("path", "").trim();
+
+        if (filePath.isEmpty()) {
+            sendJson(
+                    exchange,
+                    "{\"error\":\"Missing 'path' parameter\"}",
+                    400
+            );
+            return;
+        }
+
+        File file = new File(filePath);
+
+        if (!file.exists()) {
+            sendJson(
+                    exchange,
+                    "{\"error\":" +
+                            quote("File does not exist on server: " + filePath) +
+                            "}",
+                    404
+            );
+            return;
+        }
+
+        String os = System.getProperty("os.name").toLowerCase();
+
+        if (!os.contains("win")) {
+            sendJson(
+                    exchange,
+                    "{\"error\":" +
+                            quote("Windows File Explorer is available when running the server locally on Windows.") +
+                            "}",
+                    400
+            );
+            return;
+        }
+
+        try {
+
+            new ProcessBuilder(
+                    "explorer.exe",
+                    "/select,",
+                    file.getAbsolutePath()
+            ).start();
+
+            sendJson(
+                    exchange,
+                    "{\"success\":true,\"message\":\"Revealed in File Explorer\"}",
+                    200
+            );
+
+        } catch (Exception e) {
+
+            sendJson(
+                    exchange,
+                    "{\"error\":" +
+                            quote("Failed to open File Explorer: " + e.getMessage()) +
+                            "}",
+                    500
+            );
         }
     }
+}
+
+    
 
     // --- DOCUMENT FULL CONTENT PREVIEW ---
 
