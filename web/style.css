@@ -1823,9 +1823,11 @@ button {
 /* ---------- Search bar ---------- */
 
 .omnibar-wrapper {
+  position: relative;
   width: 100%;
   max-width: none;
   margin: 0 0 18px;
+  z-index: 100;
 }
 
 .omnibar-glow {

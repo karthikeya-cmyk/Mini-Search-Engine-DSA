@@ -241,10 +241,11 @@
             <div class="explorer-toolbar-actions">
               <input type="file" id="input-upload-files" multiple accept=".txt,.java,.py,.js,.html,.css,.md,.json,.csv,.xml,.log" style="display:none;">
               <input type="file" id="input-upload-folder" webkitdirectory directory multiple style="display:none;">
-              <button class="btn-dsa-primary" id="btn-upload-files" title="Upload local files to index into memory">📤 Upload File(s)</button>
-              <button class="btn-dsa-secondary" id="btn-upload-folder" title="Upload entire local folder to index into memory">📁 Upload Folder</button>
+              <button class="btn-dsa-primary" id="btn-index-this-folder" title="Index currently active directory into memory">⚡ Index This Directory</button>
+              <button class="btn-dsa-secondary" id="btn-reveal-active-folder" title="Open active folder in Windows File Explorer">📂 Reveal in Explorer</button>
               <button class="btn-dsa-secondary" id="btn-create-doc" title="Write a custom document in-browser">✍️ New Document</button>
-              <button class="btn-dsa-secondary" id="btn-reset-corpus" title="Reset back to default demo corpus">🔄 Reset Corpus</button>
+              <button class="btn-dsa-secondary" id="btn-upload-files" title="Upload local files to index into memory">📤 Upload File(s)</button>
+              <button class="btn-dsa-secondary" id="btn-upload-folder" title="Upload entire local folder to index into memory">📁 Upload Folder</button>
             </div>
           </div>
 
@@ -420,21 +421,29 @@
         </div>
 
         <div class="inspector-actions">
-          <button class="btn-icon-text" id="btn-drawer-copy-content" title="Copy document text">
+          <button class="btn-icon-text" id="btn-drawer-open" title="Open file in default application">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+              <polyline points="15 3 21 3 21 9"></polyline>
+              <line x1="10" y1="14" x2="21" y2="3"></line>
+            </svg>
+            Open File
+          </button>
+          <button class="btn-icon-text" id="btn-drawer-reveal" title="Reveal in Windows File Explorer">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+            </svg>
+            In Explorer
+          </button>
+          <button class="btn-icon-text" id="btn-drawer-copy" title="Copy full disk path">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
               <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
             </svg>
-            Copy Text
+            Copy Path
           </button>
-          <button class="btn-icon-text" id="btn-drawer-download" title="Download document to computer">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="7 10 12 15 17 10"></polyline>
-              <line x1="12" y1="15" x2="12" y2="3"></line>
-            </svg>
-            Download
-          </button>
+          <button class="btn-icon-text" id="btn-drawer-copy-content" title="Copy document text">📋 Copy Text</button>
+          <button class="btn-icon-text" id="btn-drawer-download" title="Download document to computer">💾 Download</button>
           <button class="btn-close-drawer" id="btn-close-drawer" title="Close preview">✕</button>
         </div>
       </div>
