@@ -19,16 +19,16 @@ public class Indexer {
             "js", "ts", "jsx", "tsx", "html", "htm", "css", "scss", "json", "xml",
             "log", "csv", "sql", "bat", "cmd", "ps1", "sh", "yml", "yaml", "ini",
             "cfg", "conf", "properties", "env", "toml", "rs", "go", "kt", "gradle",
-            "ino", "tex", "rtf", "tsv"
+            "ino", "tex", "rtf", "tsv", "pdf", "docx", "doc", "pptx", "xlsx"
     ));
 
-    // Directories to skip during recursive traversal
+    // Directories to skip during recursive traversal (system / cache / temp folders)
     private static final Set<String> IGNORED_DIRECTORIES = new HashSet<>(Arrays.asList(
-            "web", ".git", ".idea", "bin", "out", "target", "node_modules", ".gradle", "build", ".vscode",
+            ".git", ".idea", "bin", "out", "target", "node_modules", ".gradle", "build", ".vscode",
             "AppData", "Program Files", "Program Files (x86)", "Windows", "$Recycle.Bin", "System Volume Information", ".cache"
     ));
 
-    private static final int MAX_INDEX_FILES = 3000;
+    private static final int MAX_INDEX_FILES = 8000;
 
     public Indexer() {
         invertedIndex = new HashMap<>();
@@ -67,9 +67,9 @@ public class Indexer {
                 return;
             }
 
-            // If "documents" folder (e.g. for unit test or demo corpus), index text files cleanly
-            boolean isDocsFolder = folder.getFileName() != null && folder.getFileName().toString().equalsIgnoreCase("documents");
-            if (isDocsFolder) {
+            // If specifically the demo "./documents" subfolder relative to workspace, index demo txt files
+            Path demoDocsPath = Paths.get("documents").toAbsolutePath().normalize();
+            if (folder.toAbsolutePath().normalize().equals(demoDocsPath)) {
                 try (DirectoryStream<Path> stream = Files.newDirectoryStream(folder, "*.txt")) {
                     for (Path path : stream) {
                         indexSinglePath(path);
@@ -78,8 +78,8 @@ public class Indexer {
                 return;
             }
 
-            // Recursive walk for real user folders
-            Files.walkFileTree(folder, EnumSet.of(FileVisitOption.FOLLOW_LINKS), 5, new SimpleFileVisitor<Path>() {
+            // Recursive walk for real user folders & workspace projects (depth up to 8)
+            Files.walkFileTree(folder, EnumSet.of(FileVisitOption.FOLLOW_LINKS), 8, new SimpleFileVisitor<Path>() {
                 @Override
                 public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
                     String dirName = dir.getFileName() != null ? dir.getFileName().toString() : "";
@@ -87,7 +87,7 @@ public class Indexer {
                         return FileVisitResult.SKIP_SUBTREE;
                     }
 
-                    // Index prominent subdirectories (like "DSA_2", "thesis_project") as storage folder items
+                    // Index prominent subdirectories as storage folder items
                     if (!dir.equals(folder) && dir.getNameCount() <= folder.getNameCount() + 2) {
                         indexStorageDirectory(dir, attrs);
                     }

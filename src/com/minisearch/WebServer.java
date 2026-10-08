@@ -42,13 +42,8 @@ public class WebServer {
 
     public WebServer() {
         this.indexer = new Indexer();
-        // Start by indexing demo documents if available, otherwise current working directory
-        File demoDir = new File("documents");
-        if (demoDir.exists() && demoDir.isDirectory()) {
-            this.indexer.indexDocuments(demoDir.getAbsolutePath());
-        } else {
-            this.indexer.indexDocuments(System.getProperty("user.dir"));
-        }
+        // Start by indexing current project workspace directory
+        this.indexer.indexDocuments(System.getProperty("user.dir"));
 
         this.searchEngine = new SearchEngine(indexer);
         this.ranker = new Ranker();

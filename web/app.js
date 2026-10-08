@@ -262,6 +262,7 @@ function setupEventListeners() {
   // Corpus Dropdown Trigger
   if (elements.corpusDropdownTrigger) {
     elements.corpusDropdownTrigger.addEventListener('click', (e) => {
+      if (e.target.closest('#corpus-dropdown-menu')) return;
       e.stopPropagation();
       elements.corpusDropdownMenu.classList.toggle('hidden');
     });
@@ -765,11 +766,14 @@ function renderCorpusDropdown(locations) {
     const item = document.createElement('div');
     const isActive = loc.path.toLowerCase() === (state.activeCorpusPath || '').toLowerCase();
     item.className = `dropdown-item ${isActive ? 'active' : ''}`;
+    item.title = loc.path;
     item.innerHTML = `
-      <span>${loc.type === 'docs' ? '📚' : loc.type === 'drive' ? '💻' : '📁'}</span>
-      <span>${escapeHtml(loc.name)}</span>
+      <span class="dropdown-item-icon">${loc.type === 'docs' ? '📚' : loc.type === 'drive' ? '💻' : '📁'}</span>
+      <span class="dropdown-item-name">${escapeHtml(loc.name)}</span>
+      ${isActive ? '<span class="dropdown-item-check">✓</span>' : ''}
     `;
-    item.addEventListener('click', () => {
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
       elements.corpusDropdownMenu.classList.add('hidden');
       indexFolder(loc.path);
     });
