@@ -454,184 +454,87 @@ public class WebServer {
 
     // --- OS FILE ACTIONS (OPEN & REVEAL IN EXPLORER) ---
 
-private class OpenFileHandler implements HttpHandler {
-
-    @Override
-    public void handle(HttpExchange exchange) throws IOException {
-
-        if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
-            sendCors(exchange);
-            return;
-        }
-
-        Map<String, String> params =
-                parseQueryParams(exchange.getRequestURI().getRawQuery());
-
-        String filePath =
-                params.getOrDefault("path", "").trim();
-
-        if (filePath.isEmpty()) {
-            sendJson(
-                    exchange,
-                    "{\"error\":\"Missing 'path' parameter\"}",
-                    400
-            );
-            return;
-        }
-
-        File file = new File(filePath);
-
-        if (!file.exists()) {
-            sendJson(
-                    exchange,
-                    "{\"error\":" +
-                            quote("File does not exist on server: " + filePath) +
-                            "}",
-                    404
-            );
-            return;
-        }
-
-        // Opening files is only possible when the server
-        // is running on the user's own computer.
-        String os = System.getProperty("os.name").toLowerCase();
-
-        if (!os.contains("win")) {
-            sendJson(
-                    exchange,
-                    "{\"error\":" +
-                            quote("File opening is available when running the server locally on Windows.") +
-                            "}",
-                    400
-            );
-            return;
-        }
-
-        try {
-
-            if (Desktop.isDesktopSupported()
-                    && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
-
-                Desktop.getDesktop().open(file);
-
-                sendJson(
-                        exchange,
-                        "{\"success\":true,\"message\":" +
-                                quote("Opened " + file.getName()) +
-                                "}",
-                        200
-                );
-
-            } else {
-
-                new ProcessBuilder(
-                        "cmd",
-                        "/c",
-                        "start",
-                        "",
-                        file.getAbsolutePath()
-                ).start();
-
-                sendJson(
-                        exchange,
-                        "{\"success\":true,\"message\":" +
-                                quote("Opened " + file.getName()) +
-                                "}",
-                        200
-                );
+    private class OpenFileHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendCors(exchange);
+                return;
             }
 
-        } catch (Exception e) {
+            Map<String, String> params = parseQueryParams(exchange.getRequestURI().getRawQuery());
+            String filePath = params.getOrDefault("path", "").trim();
 
-            sendJson(
-                    exchange,
-                    "{\"error\":" +
-                            quote("Unable to open file: " + e.getMessage()) +
-                            "}",
-                    500
-            );
+            if (filePath.isEmpty()) {
+                sendJson(exchange, "{\"error\":\"Missing 'path' parameter\"}", 400);
+                return;
+            }
+
+            File file = new File(filePath);
+            if (!file.exists()) {
+                sendJson(exchange, "{\"error\":" + quote("File does not exist on server: " + filePath) + "}", 404);
+                return;
+            }
+
+            try {
+                String os = System.getProperty("os.name").toLowerCase();
+                if (os.contains("win")) {
+                    new ProcessBuilder("cmd.exe", "/c", "start", "\"\"", file.getAbsolutePath()).start();
+                } else if (os.contains("mac")) {
+                    new ProcessBuilder("open", file.getAbsolutePath()).start();
+                } else {
+                    new ProcessBuilder("xdg-open", file.getAbsolutePath()).start();
+                }
+
+                sendJson(exchange, "{\"success\":true,\"message\":" + quote("Opened " + file.getName()) + "}", 200);
+            } catch (Exception e) {
+                sendJson(exchange, "{\"error\":" + quote("Unable to open file: " + e.getMessage()) + "}", 500);
+            }
         }
     }
-}
 
+    private class RevealFolderHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendCors(exchange);
+                return;
+            }
 
-private class RevealFolderHandler implements HttpHandler {
+            Map<String, String> params = parseQueryParams(exchange.getRequestURI().getRawQuery());
+            String filePath = params.getOrDefault("path", "").trim();
 
-    @Override
-    public void handle(HttpExchange exchange) throws IOException {
+            if (filePath.isEmpty()) {
+                sendJson(exchange, "{\"error\":\"Missing 'path' parameter\"}", 400);
+                return;
+            }
 
-        if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
-            sendCors(exchange);
-            return;
-        }
+            File file = new File(filePath);
+            if (!file.exists()) {
+                sendJson(exchange, "{\"error\":" + quote("File does not exist on server: " + filePath) + "}", 404);
+                return;
+            }
 
-        Map<String, String> params =
-                parseQueryParams(exchange.getRequestURI().getRawQuery());
+            try {
+                String os = System.getProperty("os.name").toLowerCase();
+                if (os.contains("win")) {
+                    if (file.isDirectory()) {
+                        new ProcessBuilder("cmd.exe", "/c", "explorer", file.getAbsolutePath()).start();
+                    } else {
+                        new ProcessBuilder("cmd.exe", "/c", "explorer /select,\"" + file.getAbsolutePath() + "\"").start();
+                    }
+                } else if (os.contains("mac")) {
+                    new ProcessBuilder("open", "-R", file.getAbsolutePath()).start();
+                } else {
+                    new ProcessBuilder("xdg-open", file.getParentFile() != null ? file.getParentFile().getAbsolutePath() : file.getAbsolutePath()).start();
+                }
 
-        String filePath =
-                params.getOrDefault("path", "").trim();
-
-        if (filePath.isEmpty()) {
-            sendJson(
-                    exchange,
-                    "{\"error\":\"Missing 'path' parameter\"}",
-                    400
-            );
-            return;
-        }
-
-        File file = new File(filePath);
-
-        if (!file.exists()) {
-            sendJson(
-                    exchange,
-                    "{\"error\":" +
-                            quote("File does not exist on server: " + filePath) +
-                            "}",
-                    404
-            );
-            return;
-        }
-
-        String os = System.getProperty("os.name").toLowerCase();
-
-        if (!os.contains("win")) {
-            sendJson(
-                    exchange,
-                    "{\"error\":" +
-                            quote("Windows File Explorer is available when running the server locally on Windows.") +
-                            "}",
-                    400
-            );
-            return;
-        }
-
-        try {
-
-            new ProcessBuilder(
-                    "explorer.exe",
-                    "/select,",
-                    file.getAbsolutePath()
-            ).start();
-
-            sendJson(
-                    exchange,
-                    "{\"success\":true,\"message\":\"Revealed in File Explorer\"}",
-                    200
-            );
-
-        } catch (Exception e) {
-
-            sendJson(
-                    exchange,
-                    "{\"error\":" +
-                            quote("Failed to open File Explorer: " + e.getMessage()) +
-                            "}",
-                    500
-            );
+                sendJson(exchange, "{\"success\":true,\"message\":\"Revealed in File Explorer\"}", 200);
+            } catch (Exception e) {
+                sendJson(exchange, "{\"error\":" + quote("Failed to open File Explorer: " + e.getMessage()) + "}", 500);
+            }
         }
     }
-}
 
     
 

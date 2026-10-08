@@ -56,5 +56,5 @@ start "" http://localhost:8080
 
 echo Starting Web Server on port 8080 with full disk file access...
 echo (Press Ctrl+C in this window to stop the server)
-"!JAVA_CMD!" -cp bin com.minisearch.WebServer
+"!JAVA_CMD!" -Xmx1024m -cp bin com.minisearch.WebServer
 pause

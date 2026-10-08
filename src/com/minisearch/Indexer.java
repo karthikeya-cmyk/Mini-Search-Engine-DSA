@@ -1,6 +1,6 @@
 package com.minisearch;
 
-import java.io.IOException;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -157,7 +157,15 @@ public class Indexer {
 
             if (isText) {
                 try {
-                    content = Files.readString(path, StandardCharsets.UTF_8);
+                    if (size > 512 * 1024) {
+                        byte[] bytes = new byte[512 * 1024];
+                        try (InputStream in = Files.newInputStream(path)) {
+                            int read = in.read(bytes);
+                            content = new String(bytes, 0, read > 0 ? read : 0, StandardCharsets.UTF_8);
+                        }
+                    } else {
+                        content = Files.readString(path, StandardCharsets.UTF_8);
+                    }
                 } catch (Exception e) {
                     try {
                         content = Files.readString(path, StandardCharsets.ISO_8859_1);
@@ -205,35 +213,15 @@ public class Indexer {
     }
 
     private void indexDocument(Document document) {
-        String[] words = document.getContent()
-                .toLowerCase()
-                .split("[^a-z0-9]+");
-
-        // Count frequencies in this document, filtering out noise and random code tokens
-        Map<String, Integer> freqMap = new HashMap<>();
-
-        for (String word : words) {
-            // Keep meaningful words (length 2 to 30, no pure number noise unless 4-digit years)
-            if (word.length() < 2 || word.length() > 30) {
-                continue;
-            }
-            if (word.matches("\\d+") && word.length() != 4) {
-                continue;
-            }
-            freqMap.put(word, freqMap.getOrDefault(word, 0) + 1);
-        }
-
-        // Also add tokens from filename into frequency map with boost
-        String[] nameWords = document.getFileName().toLowerCase().split("[^a-z0-9]+");
-        for (String word : nameWords) {
-            if (word.length() >= 2 && word.length() <= 30) {
-                freqMap.put(word, freqMap.getOrDefault(word, 0) + 2);
-            }
-        }
+        // Reuse the document's computed word frequencies
+        Map<String, Integer> freqMap = document.getWordFrequency();
 
         // Insert into Trie and inverted index
         for (Map.Entry<String, Integer> entry : freqMap.entrySet()) {
             String word = entry.getKey();
+            if (word.length() < 2 || word.length() > 30) continue;
+            if (word.matches("\\d+") && word.length() != 4) continue;
+
             int freq = entry.getValue();
 
             // Insert into Trie as a document keyword
