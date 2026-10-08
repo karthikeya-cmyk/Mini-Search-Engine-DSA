@@ -44,6 +44,14 @@
           </svg>
           Corpus & Files
         </button>
+        <button class="nav-tab" data-tab="dsa">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+            <polyline points="2 17 12 22 22 17"></polyline>
+            <polyline points="2 12 12 17 22 12"></polyline>
+          </svg>
+          DSA Studio & History
+        </button>
       </nav>
     </div>
 
@@ -231,8 +239,12 @@
               <span class="path-value" id="explorer-active-path">-</span>
             </div>
             <div class="explorer-toolbar-actions">
-              <button class="btn-dsa-primary" id="btn-index-this-folder">⚡ Index This Directory</button>
-              <button class="btn-dsa-secondary" id="btn-reveal-active-folder">📂 Open in File Explorer</button>
+              <input type="file" id="input-upload-files" multiple accept=".txt,.java,.py,.js,.html,.css,.md,.json,.csv,.xml,.log" style="display:none;">
+              <input type="file" id="input-upload-folder" webkitdirectory directory multiple style="display:none;">
+              <button class="btn-dsa-primary" id="btn-upload-files" title="Upload local files to index into memory">📤 Upload File(s)</button>
+              <button class="btn-dsa-secondary" id="btn-upload-folder" title="Upload entire local folder to index into memory">📁 Upload Folder</button>
+              <button class="btn-dsa-secondary" id="btn-create-doc" title="Write a custom document in-browser">✍️ New Document</button>
+              <button class="btn-dsa-secondary" id="btn-reset-corpus" title="Reset back to default demo corpus">🔄 Reset Corpus</button>
             </div>
           </div>
 
@@ -240,6 +252,150 @@
           <div class="explorer-doc-list" id="explorer-doc-list">
             <!-- Populated via JS -->
           </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         TAB 3: DSA STUDIO & DATA STRUCTURES VISUALIZER
+         ========================================================================= -->
+    <section class="tab-panel" id="panel-dsa">
+      <div class="dsa-studio-container">
+        
+        <div class="dsa-hero-header">
+          <div class="hero-badge">
+            <span class="pulse-sparkle">✦</span>
+            <span>CORE DATA STRUCTURES & ALGORITHMS LABORATORY</span>
+          </div>
+          <h2>Interactive DSA Architecture Studio</h2>
+          <p>Inspect, profile, and verify the 5 foundational data structures driving this search engine in real time with zero backend overhead.</p>
+        </div>
+
+        <div class="dsa-studio-grid">
+
+          <!-- 1. STACK: LIFO SEARCH HISTORY -->
+          <div class="dsa-panel-card">
+            <div class="dsa-card-header">
+              <div class="dsa-card-title">
+                <h3>📚 Search History (Stack)</h3>
+                <span class="dsa-role-badge">Member 2</span>
+              </div>
+              <span class="dsa-complexity-tag">LIFO &bull; O(1) Push/Pop</span>
+            </div>
+            <div class="dsa-explainer-box">
+              Queries are pushed to the top of a <strong>Java/JS Stack</strong> in constant time <code>O(1)</code>. When traversed, elements are retrieved in Last-In First-Out order so users immediately see their most recent searches.
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:11px; color:var(--text-muted); font-weight:600;">ACTIVE STACK FRAMES:</span>
+              <button class="btn-card-action" id="btn-clear-history" title="Clear both Stack and Queue">🗑️ Clear History</button>
+            </div>
+            <div class="stack-visual-box" id="dsa-stack-visual">
+              <!-- Populated via JS -->
+            </div>
+          </div>
+
+          <!-- 2. QUEUE: FIFO RECENT SEARCHES -->
+          <div class="dsa-panel-card">
+            <div class="dsa-card-header">
+              <div class="dsa-card-title">
+                <h3>🔄 Recent Searches (Queue)</h3>
+                <span class="dsa-role-badge">Member 2</span>
+              </div>
+              <span class="dsa-complexity-tag">FIFO &bull; O(1) Sliding Buffer</span>
+            </div>
+            <div class="dsa-explainer-box">
+              Maintains a bounded sliding window of the last <strong>5 queries</strong> using a <strong>Queue</strong>. When a 6th search is enqueued at the tail, the oldest entry at the head is evicted in <code>O(1)</code> time.
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:11px; color:var(--text-muted); font-weight:600;">FIFO SLIDING WINDOW (MAX 5):</span>
+              <span class="dsa-badge-sm" id="queue-capacity-pill">Capacity: 5</span>
+            </div>
+            <div class="queue-visual-box" id="dsa-queue-visual">
+              <!-- Populated via JS -->
+            </div>
+          </div>
+
+          <!-- 3. TRIE: PREFIX TREE AUTOCOMPLETE -->
+          <div class="dsa-panel-card">
+            <div class="dsa-card-header">
+              <div class="dsa-card-title">
+                <h3>🌲 Trie (Prefix Tree)</h3>
+                <span class="dsa-role-badge">Member 1</span>
+              </div>
+              <span class="dsa-complexity-tag">Prefix Autocomplete &bull; O(L + K)</span>
+            </div>
+            <div class="dsa-explainer-box">
+              Stores vocabulary tokens across a n-ary character tree. Finding words matching prefix of length <em>L</em> takes <code>O(L)</code> to reach the prefix node, plus <code>O(K)</code> to collect <em>K</em> candidate completions.
+            </div>
+            <div class="trie-visual-box">
+              <div class="trie-input-row">
+                <input type="text" id="dsa-trie-test-input" class="trie-test-input" placeholder="Type a prefix (e.g., 'ja', 'tr', 'data')..." spellcheck="false">
+                <button class="btn-dsa-secondary" id="btn-trie-test-clear">Clear</button>
+              </div>
+              <div style="display:flex; gap:8px; font-size:11px; color:var(--text-muted);">
+                <span>Total Nodes: <strong id="trie-stat-nodes" style="color:var(--text-primary);">0</strong></span>
+                <span>&bull;</span>
+                <span>Indexed Words: <strong id="trie-stat-words" style="color:var(--text-primary);">0</strong></span>
+              </div>
+              <div class="trie-branches-display" id="dsa-trie-branches-box">
+                <!-- Populated via JS -->
+              </div>
+            </div>
+          </div>
+
+          <!-- 4. MAX-HEAP: PRIORITYQUEUE RELEVANCE RANKING -->
+          <div class="dsa-panel-card">
+            <div class="dsa-card-header">
+              <div class="dsa-card-title">
+                <h3>⚖️ PriorityQueue (Max-Heap)</h3>
+                <span class="dsa-role-badge">Member 2</span>
+              </div>
+              <span class="dsa-complexity-tag">Max-Heap &bull; O(K log N)</span>
+            </div>
+            <div class="dsa-explainer-box">
+              Documents matching a search are placed in a <strong>Binary Max-Heap</strong>. The document with highest keyword frequency sits at the root. Ties in score are broken alphabetically by file name.
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:11px; color:var(--text-muted); font-weight:600;">LATEST QUERY HEAP EXTRACTION TRACE:</span>
+              <span class="dsa-badge-sm" id="heap-trace-query">No Query</span>
+            </div>
+            <div class="heap-trace-wrap" id="dsa-heap-trace-box">
+              <!-- Populated via JS -->
+            </div>
+          </div>
+
+          <!-- 5. INVERTED INDEX POSTINGS TABLE (FULL WIDTH) -->
+          <div class="dsa-panel-card dsa-full-card">
+            <div class="dsa-card-header">
+              <div class="dsa-card-title">
+                <h3>📑 Inverted Index (Postings List)</h3>
+                <span class="dsa-role-badge">Member 1</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px;">
+                <input type="text" id="dsa-inv-filter-input" class="inv-index-filter-input" placeholder="Filter vocabulary term...">
+                <span class="dsa-complexity-tag">HashMap &bull; O(1) Lookup</span>
+              </div>
+            </div>
+            <div class="dsa-explainer-box">
+              Maps every unique word token to a postings list of documents where it occurs, alongside term frequencies. Enables instantaneous <code>O(1)</code> average-case retrieval for multi-word queries.
+            </div>
+            <div class="inv-table-wrap">
+              <table class="inv-table">
+                <thead>
+                  <tr>
+                    <th style="width:200px;">Vocabulary Term</th>
+                    <th style="width:120px;">Doc Count</th>
+                    <th>Postings List (Document &bull; Keyword Frequency)</th>
+                  </tr>
+                </thead>
+                <tbody id="dsa-inv-table-body">
+                  <!-- Populated via JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
         </div>
 
       </div>
@@ -264,26 +420,20 @@
         </div>
 
         <div class="inspector-actions">
-          <button class="btn-icon-text" id="btn-drawer-open" title="Open file in default application">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-              <polyline points="15 3 21 3 21 9"></polyline>
-              <line x1="10" y1="14" x2="21" y2="3"></line>
-            </svg>
-            Open File
-          </button>
-          <button class="btn-icon-text" id="btn-drawer-reveal" title="Reveal in Windows File Explorer">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-            </svg>
-            In Explorer
-          </button>
-          <button class="btn-icon-text" id="btn-drawer-copy" title="Copy full disk path">
+          <button class="btn-icon-text" id="btn-drawer-copy-content" title="Copy document text">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
               <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
             </svg>
-            Copy Path
+            Copy Text
+          </button>
+          <button class="btn-icon-text" id="btn-drawer-download" title="Download document to computer">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Download
           </button>
           <button class="btn-close-drawer" id="btn-close-drawer" title="Close preview">✕</button>
         </div>
@@ -305,6 +455,30 @@
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- DOCUMENT CREATION MODAL -->
+  <div class="modal-overlay hidden" id="doc-create-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>✍️ Create & Index New Document</h3>
+        <button class="modal-close-btn" id="btn-close-modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label" for="new-doc-title">Document Name (with extension, e.g., essay.txt, sample.java):</label>
+          <input type="text" id="new-doc-title" class="form-input" placeholder="e.g. notes.txt, Algorithm.java, info.md">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="new-doc-content">Document Text / Code Content:</label>
+          <textarea id="new-doc-content" class="form-textarea" placeholder="Type or paste text content to be indexed into Trie and Inverted Index..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-dsa-secondary" id="btn-cancel-modal">Cancel</button>
+        <button class="btn-dsa-primary" id="btn-save-doc">⚡ Ingest & Index Document</button>
+      </div>
     </div>
   </div>
 

@@ -56,12 +56,38 @@ From the project root directory:
 javac -d bin src/com/minisearch/*.java
 ```
 
-### Running the Web Application (Interactive Frontend)
-You can launch the modern web frontend at **http://localhost:8080**:
-```bash
-java -cp bin com.minisearch.WebServer
-```
-Or simply double-click [run_gui.bat](run_gui.bat) on Windows.
+### Running the Web Application (Zero-Backend Frontend)
+The web application runs **100% in the browser** powered by native client-side implementations of the core DSA structures (Trie, Inverted Index, Max-Heap, Stack, Queue) with zero backend server dependencies!
+
+* **Option 1 (Direct in Browser):** Simply open [`web/index.html`](web/index.html) in any modern browser, or double-click [`run_gui.bat`](run_gui.bat) on Windows.
+* **Option 2 (Local Server):** 
+  ```bash
+  npm start
+  ```
+  Or using any static file server: `npx -y serve web`.
+
+---
+
+## 🌐 Netlify Deployment (Frontend Only)
+
+This project is fully configured for continuous deployment on **Netlify** with zero backend servers required.
+
+### Deploying to Netlify in 1 Step:
+1. **Via Git / Netlify Dashboard (Recommended):**
+   * Link your repository (`https://github.com/karthikeya-cmyk/Mini-Search-Engine-DSA.git`) to Netlify.
+   * Netlify automatically reads [`netlify.toml`](netlify.toml) and sets:
+     * **Publish directory:** `web`
+     * **Build command:** (none needed - pure static web application)
+   * Click **Deploy** & your search engine will be live instantly!
+
+2. **Via Netlify Drop (No CLI or Login required):**
+   * Go to [app.netlify.com/drop](https://app.netlify.com/drop)
+   * Drag and drop the `web/` folder directly onto the page.
+
+3. **Via Netlify CLI:**
+   ```bash
+   npx netlify deploy --prod --dir=web
+   ```
 
 ### Running the Console Application (CLI)
 ```bash

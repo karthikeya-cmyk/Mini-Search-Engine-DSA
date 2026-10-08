@@ -1,0 +1,23 @@
+{
+  "name": "mini-search-engine-dsa",
+  "version": "1.0.0",
+  "description": "High-Performance In-Memory Search Engine powered by DSA (Trie, Inverted Index, Max-Heap, Stack, Queue) - Static Web App for Netlify",
+  "scripts": {
+    "start": "npx -y serve web",
+    "serve": "npx -y serve web",
+    "build": "echo 'Frontend ready for Netlify static deployment'"
+  },
+  "keywords": [
+    "search-engine",
+    "data-structures",
+    "algorithms",
+    "trie",
+    "max-heap",
+    "inverted-index",
+    "stack",
+    "queue",
+    "netlify"
+  ],
+  "author": "",
+  "license": "MIT"
+}
