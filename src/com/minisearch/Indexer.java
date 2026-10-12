@@ -19,7 +19,7 @@ public class Indexer {
             "js", "ts", "jsx", "tsx", "html", "htm", "css", "scss", "json", "xml",
             "log", "csv", "sql", "bat", "cmd", "ps1", "sh", "yml", "yaml", "ini",
             "cfg", "conf", "properties", "env", "toml", "rs", "go", "kt", "gradle",
-            "ino", "tex", "rtf", "tsv", "pdf", "docx", "doc", "pptx", "xlsx"
+            "ino", "tex", "rtf", "tsv"
     ));
 
     // Directories to skip during recursive traversal (system / cache / temp folders)

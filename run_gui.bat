@@ -51,10 +51,12 @@ echo.
 echo ========================================================
 echo  SERVER ACTIVE: http://localhost:8080
 echo ========================================================
-echo Opening default web browser at http://localhost:8080 ...
-start "" http://localhost:8080
-
 echo Starting Web Server on port 8080 with full disk file access...
 echo (Press Ctrl+C in this window to stop the server)
-"!JAVA_CMD!" -Xmx1024m -cp bin com.minisearch.WebServer
-pause
+start /b "" "!JAVA_CMD!" "-Djava.awt.headless=false" -Xmx1024m -cp bin com.minisearch.WebServer
+echo Waiting for server to start...
+timeout /t 3 /nobreak >nul
+echo Opening default web browser at http://localhost:8080 ...
+start "" http://localhost:8080
+echo.
+echo Server is running. Press Ctrl+C to stop.

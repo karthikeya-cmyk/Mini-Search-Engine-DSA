@@ -217,7 +217,7 @@ public class WebServer {
                         dirsList.add(new FileItem(f.getName(), f.getAbsolutePath(), true, 0, "", dateFormat.format(new Date(f.lastModified())), "dir"));
                     } else {
                         String ext = getFileExtension(f.getName());
-                        dirsList.add(new FileItem(f.getName(), f.getAbsolutePath(), false, f.length(), formatBytes(f.length()), dateFormat.format(new Date(f.lastModified())), ext));
+                        filesList.add(new FileItem(f.getName(), f.getAbsolutePath(), false, f.length(), formatBytes(f.length()), dateFormat.format(new Date(f.lastModified())), ext));
                     }
                 }
             }
@@ -228,6 +228,11 @@ public class WebServer {
                 if (!a.isDir && b.isDir) return 1;
                 return a.name.compareToIgnoreCase(b.name);
             });
+            filesList.sort((a, b) -> a.name.compareToIgnoreCase(b.name));
+
+            // Merge: dirs first, then files
+            List<FileItem> allItems = new ArrayList<>(dirsList);
+            allItems.addAll(filesList);
 
             StringBuilder json = new StringBuilder();
             json.append("{");
@@ -236,9 +241,9 @@ public class WebServer {
             json.append("\"isCurrentIndexed\":").append(indexer.getCurrentFolderPath().equalsIgnoreCase(dir.getAbsolutePath())).append(",");
             json.append("\"items\":[");
 
-            for (int i = 0; i < dirsList.size(); i++) {
+            for (int i = 0; i < allItems.size(); i++) {
                 if (i > 0) json.append(",");
-                FileItem fi = dirsList.get(i);
+                FileItem fi = allItems.get(i);
                 json.append("{");
                 json.append("\"name\":").append(quote(fi.name)).append(",");
                 json.append("\"path\":").append(quote(fi.path)).append(",");
@@ -477,15 +482,22 @@ public class WebServer {
             }
 
             try {
-                String os = System.getProperty("os.name").toLowerCase();
-                if (os.contains("win")) {
-                    new ProcessBuilder("cmd.exe", "/c", "start", "\"\"", file.getAbsolutePath()).start();
-                } else if (os.contains("mac")) {
-                    new ProcessBuilder("open", file.getAbsolutePath()).start();
+                // Desktop.open() calls Windows ShellExecute directly — works from background
+                // Java processes unlike ProcessBuilder/cmd which need a console window
+                if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
+                    Desktop.getDesktop().open(file);
                 } else {
-                    new ProcessBuilder("xdg-open", file.getAbsolutePath()).start();
+                    // Fallback for headless environments
+                    String os = System.getProperty("os.name").toLowerCase();
+                    String absPath = file.getAbsolutePath();
+                    if (os.contains("win")) {
+                        new ProcessBuilder("cmd.exe", "/c", "start", "", absPath).start();
+                    } else if (os.contains("mac")) {
+                        new ProcessBuilder("open", absPath).start();
+                    } else {
+                        new ProcessBuilder("xdg-open", absPath).start();
+                    }
                 }
-
                 sendJson(exchange, "{\"success\":true,\"message\":" + quote("Opened " + file.getName()) + "}", 200);
             } catch (Exception e) {
                 sendJson(exchange, "{\"error\":" + quote("Unable to open file: " + e.getMessage()) + "}", 500);
@@ -517,16 +529,25 @@ public class WebServer {
 
             try {
                 String os = System.getProperty("os.name").toLowerCase();
+                String absPath = file.getAbsolutePath();
                 if (os.contains("win")) {
-                    if (file.isDirectory()) {
-                        new ProcessBuilder("cmd.exe", "/c", "explorer", file.getAbsolutePath()).start();
+                    // Use Desktop.browseFileDirectory if available (Java 9+)
+                    // Otherwise fall back to explorer via Runtime for reliable invocation
+                    File target = file.isDirectory() ? file : file;
+                    if (Desktop.isDesktopSupported()) {
+                        try {
+                            Desktop.getDesktop().browseFileDirectory(file);
+                        } catch (UnsupportedOperationException uoe) {
+                            // browseFileDirectory not supported, use explorer directly
+                            Runtime.getRuntime().exec(new String[]{"explorer.exe", "/select," + absPath});
+                        }
                     } else {
-                        new ProcessBuilder("cmd.exe", "/c", "explorer /select,\"" + file.getAbsolutePath() + "\"").start();
+                        Runtime.getRuntime().exec(new String[]{"explorer.exe", "/select," + absPath});
                     }
                 } else if (os.contains("mac")) {
-                    new ProcessBuilder("open", "-R", file.getAbsolutePath()).start();
+                    new ProcessBuilder("open", "-R", absPath).start();
                 } else {
-                    new ProcessBuilder("xdg-open", file.getParentFile() != null ? file.getParentFile().getAbsolutePath() : file.getAbsolutePath()).start();
+                    new ProcessBuilder("xdg-open", file.getParentFile() != null ? file.getParentFile().getAbsolutePath() : absPath).start();
                 }
 
                 sendJson(exchange, "{\"success\":true,\"message\":\"Revealed in File Explorer\"}", 200);

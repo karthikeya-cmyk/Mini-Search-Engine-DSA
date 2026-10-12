@@ -13,10 +13,12 @@
  * ============================================================================
  */
 
-// Determine Backend API Base (auto-detects port 8080 or falls back to current host)
-const API_BASE = (window.location.protocol.startsWith('http') && window.location.port === '8080')
-  ? window.location.origin
-  : 'http://localhost:8080';
+// Determine Backend API Base (auto-detects localhost/127.0.0.1 or falls back to port 8080)
+const _host = window.location.hostname;
+const _isLocal = _host === 'localhost' || _host === '127.0.0.1' || _host === '0.0.0.0';
+const API_BASE = _isLocal
+  ? window.location.origin  // use whatever port the server is on
+  : 'http://localhost:8080'; // static deploy fallback
 
 // Global Application State
 const state = {
@@ -414,6 +416,72 @@ function setupEventListeners() {
   if (elements.dsaInvFilterInput) {
     elements.dsaInvFilterInput.addEventListener('input', (e) => {
       renderInvertedIndexTable(e.target.value.trim().toLowerCase());
+    });
+  }
+}
+
+// Wrapper: renders trie visualizer (delegates to backend or fallback)
+function renderTrieVisualizer(prefix) {
+  if (state.backendConnected) {
+    renderDsaTrieFromBackend(prefix);
+  } else {
+    // Fallback in-memory trie visualizer
+    if (!elements.dsaTrieBranchesBox) return;
+    if (!prefix) {
+      elements.dsaTrieBranchesBox.innerHTML = `
+        <div style="margin-bottom:8px; color:var(--text-primary); font-weight:600;">Trie Prefix Tree Ready:</div>
+        <div style="color:var(--text-muted); font-size:11px;">Type any prefix above to test <code>Trie.autoComplete()</code> in real time.</div>
+      `;
+      return;
+    }
+    const suggestions = fallbackTrie.autoCompleteDetails(prefix);
+    if (elements.trieStatNodes) elements.trieStatNodes.textContent = fallbackTrie.nodeCount || 0;
+    if (elements.trieStatWords) elements.trieStatWords.textContent = fallbackTrie.wordCount || 0;
+    elements.dsaTrieBranchesBox.innerHTML = `
+      <div style="margin-bottom:8px;">
+        <span style="color:var(--text-muted);">Active Prefix:</span> <strong>"${escapeHtml(prefix)}"</strong>
+      </div>
+      <div style="margin-top:8px; font-weight:600; color:var(--text-primary); margin-bottom:6px;">Suggestions (${suggestions.length}):</div>
+      <div style="display:flex; flex-wrap:wrap; gap:6px;">
+        ${suggestions.map(s => `
+          <span class="trie-suggestion-chip" onclick="searchFromTrie('${escapeHtml(s.displayText || s.text)}')">
+            <span>🔍</span> <strong>${escapeHtml(s.displayText || s.text)}</strong>
+          </span>
+        `).join('')}
+      </div>
+    `;
+  }
+}
+
+// Wrapper: renders inverted index table (delegates to backend or fallback)
+function renderInvertedIndexTable(filter) {
+  if (state.backendConnected) {
+    renderDsaInvertedIndexFromBackend(filter);
+  } else {
+    // Fallback in-memory inverted index
+    if (!elements.dsaInvTableBody) return;
+    let terms = [...fallbackIndexer.invertedIndex.keys()].sort();
+    if (filter) terms = terms.filter(t => t.includes(filter));
+    if (terms.length === 0) {
+      elements.dsaInvTableBody.innerHTML = `
+        <tr><td colspan="3" style="text-align:center; padding:24px; color:var(--text-muted);">No inverted index terms match "${escapeHtml(filter)}".</td></tr>
+      `;
+      return;
+    }
+    elements.dsaInvTableBody.innerHTML = '';
+    terms.slice(0, 60).forEach(term => {
+      const docs = fallbackIndexer.invertedIndex.get(term) || [];
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong style="color:var(--accent-primary); font-family:var(--font-mono);">${escapeHtml(term)}</strong></td>
+        <td><span class="dsa-badge-sm">${docs.length} file${docs.length === 1 ? '' : 's'}</span></td>
+        <td>
+          <div style="display:flex; flex-wrap:wrap; gap:4px;">
+            ${docs.map(d => `<span class="posting-chip"><span>${escapeHtml(d.fileName)}</span><span class="posting-freq">(${d.getKeywordFrequency(term)}x)</span></span>`).join('')}
+          </div>
+        </td>
+      `;
+      elements.dsaInvTableBody.appendChild(tr);
     });
   }
 }
